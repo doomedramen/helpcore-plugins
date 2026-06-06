@@ -1,3 +1,4 @@
+// Weather plugin - powered by Open-Meteo (no API key needed)
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
