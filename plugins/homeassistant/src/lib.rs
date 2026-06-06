@@ -31,9 +31,14 @@ impl Guest for HomeAssistant {
             .map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
-            "homeassistant_list_entities" => list_entities(&input),
-            "homeassistant_get_state"     => get_state(&input),
-            "homeassistant_call_service"  => call_service(&input),
+            "homeassistant_list_entities"      => list_entities(&input),
+            "homeassistant_get_state"          => get_state(&input),
+            "homeassistant_call_service"       => call_service(&input),
+            "homeassistant_set_state"          => set_state(&input),
+            "homeassistant_list_automations"   => list_automations(&input),
+            "homeassistant_trigger_automation" => trigger_automation(&input),
+            "homeassistant_set_timer"          => set_timer(&input),
+            "homeassistant_get_history"        => get_history(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
     }
@@ -151,6 +156,12 @@ struct EntityRegistryEntry {
     entity_id: String,
     #[serde(default)]
     area_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct HaHistoryEntry {
+    state: String,
+    last_changed: String,
 }
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
@@ -352,4 +363,427 @@ fn call_service(input: &Value) -> Result<String, String> {
     }
 
     Ok(format!("Called {domain}.{service} successfully."))
+}
+
+// ── set_state ─────────────────────────────────────────────────────────────────
+
+fn resolve_service(
+    domain: &str,
+    attribute: &str,
+    value: &Value,
+) -> Result<(&'static str, &'static str, serde_json::Map<String, Value>), String> {
+    let attr = attribute.to_lowercase();
+    let mut data: serde_json::Map<String, Value> = serde_json::Map::new();
+
+    macro_rules! with_key {
+        ($svc_domain:expr, $svc:expr, $key:expr) => {{
+            data.insert($key.into(), value.clone());
+            Ok(($svc_domain, $svc, data))
+        }};
+    }
+    macro_rules! no_data {
+        ($svc_domain:expr, $svc:expr) => {{
+            Ok(($svc_domain, $svc, data))
+        }};
+    }
+
+    match domain {
+        "light" => match attr.as_str() {
+            "brightness"                       => with_key!("light", "turn_on", "brightness_pct"),
+            "color_temp" | "colour_temp"       => with_key!("light", "turn_on", "color_temp"),
+            "color_temp_kelvin" | "colour_temp_kelvin" => with_key!("light", "turn_on", "color_temp_kelvin"),
+            "rgb_color" | "rgb" | "color" | "colour" => with_key!("light", "turn_on", "rgb_color"),
+            "state" => {
+                if value.as_str().map(|v| v.eq_ignore_ascii_case("off")).unwrap_or(false) {
+                    no_data!("light", "turn_off")
+                } else {
+                    no_data!("light", "turn_on")
+                }
+            }
+            _ => Err(format!("Unknown attribute '{attribute}' for light. Try: brightness, color_temp, rgb_color, state")),
+        },
+
+        "climate" => match attr.as_str() {
+            "temperature"                       => with_key!("climate", "set_temperature", "temperature"),
+            "mode" | "hvac_mode"                => with_key!("climate", "set_hvac_mode", "hvac_mode"),
+            "fan_mode"                          => with_key!("climate", "set_fan_mode", "fan_mode"),
+            "humidity"                          => with_key!("climate", "set_humidity", "humidity"),
+            "preset_mode"                       => with_key!("climate", "set_preset_mode", "preset_mode"),
+            _ => Err(format!("Unknown attribute '{attribute}' for climate. Try: temperature, mode, fan_mode, humidity, preset_mode")),
+        },
+
+        "cover" => match attr.as_str() {
+            "position"      => with_key!("cover", "set_cover_position", "position"),
+            "tilt_position" => with_key!("cover", "set_cover_tilt_position", "tilt_position"),
+            "state" => {
+                let v = value.as_str().map(|s| s.to_lowercase()).unwrap_or_default();
+                match v.as_str() {
+                    "close" | "closed" => no_data!("cover", "close_cover"),
+                    "stop"             => no_data!("cover", "stop_cover"),
+                    _                  => no_data!("cover", "open_cover"),
+                }
+            }
+            _ => Err(format!("Unknown attribute '{attribute}' for cover. Try: position, tilt_position, state")),
+        },
+
+        "fan" => match attr.as_str() {
+            "percentage" | "speed" => with_key!("fan", "set_percentage", "percentage"),
+            "preset_mode"          => with_key!("fan", "set_preset_mode", "preset_mode"),
+            "direction"            => with_key!("fan", "set_direction", "direction"),
+            "state" => {
+                if value.as_str().map(|v| v.eq_ignore_ascii_case("off")).unwrap_or(false) {
+                    no_data!("fan", "turn_off")
+                } else {
+                    no_data!("fan", "turn_on")
+                }
+            }
+            _ => Err(format!("Unknown attribute '{attribute}' for fan. Try: percentage/speed, preset_mode, state")),
+        },
+
+        "media_player" => match attr.as_str() {
+            "volume" | "volume_level" => {
+                // HA expects 0.0–1.0; accept 0–100 as well
+                let normalized = value.as_f64().map(|n| {
+                    if n > 1.0 { Value::from(n / 100.0) } else { value.clone() }
+                }).unwrap_or_else(|| value.clone());
+                data.insert("volume_level".into(), normalized);
+                Ok(("media_player", "volume_set", data))
+            }
+            "source"     => with_key!("media_player", "select_source", "source"),
+            "sound_mode" => with_key!("media_player", "select_sound_mode", "sound_mode"),
+            _ => Err(format!("Unknown attribute '{attribute}' for media_player. Try: volume, source, sound_mode")),
+        },
+
+        "vacuum" => match attr.as_str() {
+            "fan_speed" | "speed" | "mode" => with_key!("vacuum", "set_fan_speed", "fan_speed"),
+            _ => Err(format!("Unknown attribute '{attribute}' for vacuum. Try: fan_speed/mode")),
+        },
+
+        "water_heater" => match attr.as_str() {
+            "temperature"                    => with_key!("water_heater", "set_temperature", "temperature"),
+            "mode" | "operation_mode"        => with_key!("water_heater", "set_operation_mode", "operation_mode"),
+            "away_mode"                      => with_key!("water_heater", "set_away_mode", "away_mode"),
+            _ => Err(format!("Unknown attribute '{attribute}' for water_heater. Try: temperature, mode")),
+        },
+
+        "input_number" => with_key!("input_number", "set_value", "value"),
+        "number"       => with_key!("number", "set_value", "value"),
+        "input_select" => with_key!("input_select", "select_option", "option"),
+        "select"       => with_key!("select", "select_option", "option"),
+        "input_text"   => with_key!("input_text", "set_value", "value"),
+        "input_boolean" => {
+            let is_off = value.as_str()
+                .map(|v| v.eq_ignore_ascii_case("off") || v.eq_ignore_ascii_case("false"))
+                .or_else(|| value.as_bool().map(|b| !b))
+                .unwrap_or(false);
+            if is_off { no_data!("input_boolean", "turn_off") }
+            else      { no_data!("input_boolean", "turn_on")  }
+        }
+
+        _ => Err(format!(
+            "set_state does not support domain '{domain}'. \
+            Use homeassistant_call_service for custom service calls."
+        )),
+    }
+}
+
+fn set_state(input: &Value) -> Result<String, String> {
+    let config = load_config()?;
+    let entity_id = input.get("entity_id").and_then(Value::as_str)
+        .ok_or("entity_id is required")?;
+    let attribute = input.get("attribute").and_then(Value::as_str)
+        .ok_or("attribute is required")?;
+    let value = input.get("value").ok_or("value is required")?;
+
+    validate_url_path_segment(entity_id, "entity_id")?;
+
+    let domain = entity_id.split('.').next()
+        .ok_or("invalid entity_id: expected format domain.name")?;
+
+    let (svc_domain, svc_name, mut service_data) = resolve_service(domain, attribute, value)?;
+    service_data.insert("entity_id".into(), Value::String(entity_id.to_string()));
+
+    let res: Value = ha_request(
+        &config, "POST",
+        &format!("/services/{svc_domain}/{svc_name}"),
+        Some(Value::Object(service_data)),
+    )?;
+
+    let display_name = res.as_array()
+        .and_then(|arr| arr.iter().find(|e| {
+            e.get("entity_id").and_then(Value::as_str) == Some(entity_id)
+        }))
+        .and_then(|e| e.get("attributes"))
+        .and_then(|a| a.get("friendly_name"))
+        .and_then(Value::as_str)
+        .unwrap_or(entity_id);
+
+    Ok(format!("Set {display_name} {attribute} to {value}."))
+}
+
+// ── list_automations ──────────────────────────────────────────────────────────
+
+fn list_automations(_input: &Value) -> Result<String, String> {
+    let config = load_config()?;
+
+    let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
+
+    let mut automations: Vec<(String, String, String)> = Vec::new();
+    let mut scripts:     Vec<(String, String)>          = Vec::new();
+    let mut scenes:      Vec<(String, String)>          = Vec::new();
+
+    for s in states {
+        let name = s.attributes.friendly_name.unwrap_or_else(|| s.entity_id.clone());
+        match s.entity_id.split('.').next() {
+            Some("automation") => automations.push((s.entity_id, name, s.state)),
+            Some("script")     => scripts.push((s.entity_id, name)),
+            Some("scene")      => scenes.push((s.entity_id, name)),
+            _ => {}
+        }
+    }
+
+    if automations.is_empty() && scripts.is_empty() && scenes.is_empty() {
+        return Ok("No automations, scripts, or scenes found.".to_string());
+    }
+
+    automations.sort_by(|a, b| a.1.cmp(&b.1));
+    scripts.sort_by(|a, b| a.1.cmp(&b.1));
+    scenes.sort_by(|a, b| a.1.cmp(&b.1));
+
+    let mut result = String::new();
+
+    if !automations.is_empty() {
+        result.push_str("Automations:");
+        for (entity_id, name, state) in &automations {
+            let status = if state == "on" { "enabled" } else { "disabled" };
+            result.push_str(&format!("\n  {name} ({entity_id}) — {status}"));
+        }
+    }
+    if !scripts.is_empty() {
+        if !result.is_empty() { result.push_str("\n\n"); }
+        result.push_str("Scripts:");
+        for (entity_id, name) in &scripts {
+            result.push_str(&format!("\n  {name} ({entity_id})"));
+        }
+    }
+    if !scenes.is_empty() {
+        if !result.is_empty() { result.push_str("\n\n"); }
+        result.push_str("Scenes:");
+        for (entity_id, name) in &scenes {
+            result.push_str(&format!("\n  {name} ({entity_id})"));
+        }
+    }
+
+    Ok(result)
+}
+
+// ── trigger_automation ────────────────────────────────────────────────────────
+
+fn trigger_automation(input: &Value) -> Result<String, String> {
+    let config = load_config()?;
+    let name = input.get("name").and_then(Value::as_str)
+        .ok_or("name is required")?;
+
+    let (entity_id, domain) = if name.contains('.') {
+        validate_url_path_segment(name, "name")?;
+        let domain = name.split('.').next()
+            .ok_or("invalid entity_id")?.to_string();
+        (name.to_string(), domain)
+    } else {
+        let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
+        let needle = name.to_lowercase();
+
+        let matched = states.into_iter()
+            .filter(|s| matches!(
+                s.entity_id.split('.').next(),
+                Some("automation" | "script" | "scene")
+            ))
+            .find(|s| {
+                s.attributes.friendly_name.as_ref()
+                    .map(|n| n.to_lowercase().contains(&needle))
+                    .unwrap_or(false)
+                    || s.entity_id.to_lowercase().contains(&needle)
+            });
+
+        match matched {
+            Some(s) => {
+                let domain = s.entity_id.split('.').next().unwrap_or("").to_string();
+                (s.entity_id, domain)
+            }
+            None => return Err(format!(
+                "No automation, script, or scene found matching '{name}'. \
+                Use homeassistant_list_automations to see available options."
+            )),
+        }
+    };
+
+    let (svc_domain, svc_name) = match domain.as_str() {
+        "automation" => ("automation", "trigger"),
+        "script"     => ("script", "turn_on"),
+        "scene"      => ("scene", "turn_on"),
+        other        => return Err(format!("Cannot trigger entity of domain '{other}'")),
+    };
+
+    let mut body = serde_json::json!({"entity_id": entity_id});
+    if domain == "automation" {
+        body.as_object_mut().unwrap().insert("skip_condition".into(), Value::Bool(true));
+    }
+
+    let _: Value = ha_request(&config, "POST", &format!("/services/{svc_domain}/{svc_name}"), Some(body))?;
+
+    let verb = match (svc_domain, svc_name) {
+        ("scene", _)      => "Activated scene",
+        ("automation", _) => "Triggered automation",
+        _                 => "Started script",
+    };
+    Ok(format!("{verb}: {entity_id}."))
+}
+
+// ── set_timer ─────────────────────────────────────────────────────────────────
+
+fn parse_duration(s: &str) -> Result<u64, String> {
+    let s = s.trim().to_lowercase();
+    let mut total: u64 = 0;
+    let mut chars = s.chars().peekable();
+
+    while chars.peek().is_some() {
+        while chars.peek().map_or(false, |c| c.is_whitespace() || *c == ',') {
+            chars.next();
+        }
+        if chars.peek().is_none() { break; }
+
+        let mut digits = String::new();
+        while chars.peek().map_or(false, |c| c.is_ascii_digit()) {
+            digits.push(chars.next().unwrap());
+        }
+        if digits.is_empty() {
+            while chars.peek().map_or(false, |c| c.is_alphabetic()) { chars.next(); }
+            continue;
+        }
+
+        let n: u64 = digits.parse().map_err(|_| format!("invalid number '{digits}'"))?;
+
+        while chars.peek().map_or(false, |c| c.is_whitespace()) { chars.next(); }
+
+        let mut unit = String::new();
+        while chars.peek().map_or(false, |c| c.is_alphabetic()) {
+            unit.push(chars.next().unwrap());
+        }
+
+        let mult = match unit.as_str() {
+            "h" | "hr" | "hrs" | "hour" | "hours"       => 3600u64,
+            "m" | "min" | "mins" | "minute" | "minutes" => 60,
+            "s" | "sec" | "secs" | "second" | "seconds" => 1,
+            ""                                           => 1,
+            other => return Err(format!(
+                "Unknown duration unit '{other}'. Use h, m, or s — e.g. '30m', '1h30m', '90s'."
+            )),
+        };
+
+        total = total.saturating_add(n.saturating_mul(mult));
+    }
+
+    if total == 0 {
+        return Err("Duration must be greater than 0. Examples: '30m', '1h', '90s', '1h30m'.".to_string());
+    }
+    Ok(total)
+}
+
+fn format_duration(secs: u64) -> String {
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    match (h, m, s) {
+        (h, 0, 0) if h > 0 => format!("{h}h"),
+        (0, m, 0) if m > 0 => format!("{m}m"),
+        (0, 0, s)           => format!("{s}s"),
+        (h, m, 0)           => format!("{h}h {m}m"),
+        (0, m, s)           => format!("{m}m {s}s"),
+        (h, m, s)           => format!("{h}h {m}m {s}s"),
+    }
+}
+
+fn set_timer(input: &Value) -> Result<String, String> {
+    let config = load_config()?;
+    let entity_id = input.get("entity_id").and_then(Value::as_str)
+        .ok_or("entity_id is required")?;
+    let duration_str = input.get("duration").and_then(Value::as_str)
+        .ok_or("duration is required")?;
+
+    validate_url_path_segment(entity_id, "entity_id")?;
+
+    let delay_seconds = parse_duration(duration_str)?;
+    let display = format_duration(delay_seconds);
+
+    let _: Value = ha_request(
+        &config, "POST", "/events/plugin_set_timer",
+        Some(serde_json::json!({
+            "entity_id": entity_id,
+            "delay_seconds": delay_seconds,
+        })),
+    )?;
+
+    let setup = "Note: requires a one-time Home Assistant automation:\n\
+        • Trigger: Event type = plugin_set_timer\n\
+        • Action 1: Delay — {{ trigger.event.data.delay_seconds }} seconds\n\
+        • Action 2: Service = homeassistant.turn_off, Entity = {{ trigger.event.data.entity_id }}";
+
+    Ok(format!("Timer set — {entity_id} will turn off in {display}.\n\n{setup}"))
+}
+
+// ── get_history ───────────────────────────────────────────────────────────────
+
+fn get_history(input: &Value) -> Result<String, String> {
+    let config = load_config()?;
+    let entity_id = input.get("entity_id").and_then(Value::as_str)
+        .ok_or("entity_id is required")?;
+    let hours_back = input.get("hours_back").and_then(Value::as_f64)
+        .unwrap_or(24.0)
+        .max(0.5)
+        .min(168.0);
+
+    validate_url_path_segment(entity_id, "entity_id")?;
+
+    let hours = hours_back.ceil() as u64;
+    // Wrap in JSON quotes so ha_request can deserialise the rendered string as a Rust String.
+    let tmpl = format!(
+        r#""{{{{ (now() - timedelta(hours={hours})).strftime('%Y-%m-%dT%H:%M:%S') }}}}""#
+    );
+    let start_time: String = ha_request(&config, "POST", "/template",
+        Some(serde_json::json!({"template": tmpl})))?;
+
+    let path = format!(
+        "/history/period/{}?filter_entity_id={}&minimal_response",
+        start_time, entity_id
+    );
+    let history: Vec<Vec<HaHistoryEntry>> = ha_request(&config, "GET", &path, None)?;
+
+    let entries: Vec<&HaHistoryEntry> = history.iter().flatten().collect();
+
+    let hours_display = if hours_back < 1.0 {
+        format!("{} minutes", (hours_back * 60.0) as u64)
+    } else {
+        format!("{hours_back:.0}h")
+    };
+
+    if entries.is_empty() {
+        return Ok(format!("No history found for {entity_id} in the last {hours_display}."));
+    }
+
+    let mut result = format!("History for {entity_id} (last {hours_display}):");
+    let mut prev_state: Option<String> = None;
+
+    for entry in &entries {
+        if prev_state.as_deref() == Some(entry.state.as_str()) {
+            continue;
+        }
+        let time = entry.last_changed
+            .split('T').nth(1)
+            .and_then(|t| t.get(..5))
+            .unwrap_or(&entry.last_changed);
+        result.push_str(&format!("\n  {time} → {}", entry.state));
+        prev_state = Some(entry.state.clone());
+    }
+
+    Ok(result)
 }

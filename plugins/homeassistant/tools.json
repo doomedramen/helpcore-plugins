@@ -56,6 +56,85 @@
           }
         }
       }
+    },
+    {
+      "name": "homeassistant_set_state",
+      "description": "Change an attribute or setting on any Home Assistant device without needing to know the specific service call. Examples: dim a light (brightness=50), change HVAC mode (mode=cool), set fan speed (speed=75), position blinds (position=50), set thermostat temperature (temperature=21).",
+      "input_schema": {
+        "type": "object",
+        "required": ["entity_id", "attribute", "value"],
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "description": "The entity ID to change, e.g. light.orb, climate.living_room, fan.bedroom, cover.blinds"
+          },
+          "attribute": {
+            "type": "string",
+            "description": "What to change. Lights: brightness, color_temp, rgb_color, state. Climate: temperature, mode, fan_mode, humidity. Cover: position, tilt_position. Fan: percentage/speed, preset_mode. Media player: volume, source. Vacuum: fan_speed/mode."
+          },
+          "value": {
+            "description": "The new value. Use numbers for numeric attributes (e.g. brightness=50, temperature=21, position=50) and strings for modes (e.g. mode=cool, state=off)."
+          }
+        }
+      }
+    },
+    {
+      "name": "homeassistant_list_automations",
+      "description": "List all Home Assistant automations, scripts, and scenes that can be triggered by name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "homeassistant_trigger_automation",
+      "description": "Trigger a Home Assistant automation, script, or scene by name or entity_id. Use homeassistant_list_automations first to find available options.",
+      "input_schema": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The friendly name (e.g. 'Goodnight Routine') or entity_id (e.g. 'automation.goodnight_routine') of the automation, script, or scene to trigger. Case-insensitive partial name matching is supported."
+          }
+        }
+      }
+    },
+    {
+      "name": "homeassistant_set_timer",
+      "description": "Schedule a device to turn off after a delay. Examples: 'turn off the bedroom light in 30 minutes', 'turn off the TV in 2 hours'. Fires a plugin_set_timer event — requires a one-time automation setup in Home Assistant (instructions included in the response).",
+      "input_schema": {
+        "type": "object",
+        "required": ["entity_id", "duration"],
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "description": "The entity ID to turn off when the timer expires, e.g. light.bedroom_light, switch.tv"
+          },
+          "duration": {
+            "type": "string",
+            "description": "How long to wait. Examples: '30m', '1h', '90s', '1h30m', '45 minutes', '2 hours'"
+          }
+        }
+      }
+    },
+    {
+      "name": "homeassistant_get_history",
+      "description": "Get the recent state history of a Home Assistant entity. Useful for questions like 'when did the kitchen light turn on?', 'how long was the front door open?', or 'what temperature was the thermostat set to this morning?'",
+      "input_schema": {
+        "type": "object",
+        "required": ["entity_id"],
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "description": "The entity ID to get history for, e.g. light.kitchen_light, binary_sensor.front_door"
+          },
+          "hours_back": {
+            "type": "number",
+            "description": "How many hours of history to fetch (default: 24, max: 168). Use 0.5 for the last 30 minutes."
+          }
+        }
+      }
     }
   ]
 }
