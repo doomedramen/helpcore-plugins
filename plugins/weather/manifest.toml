@@ -1,6 +1,6 @@
 id = "weather"
 name = "Weather"
-version = "0.2.0"
+version = "0.2.1"
 description = "Weather forecasts and current conditions for any location worldwide — no API key required"
 tier = "wasm"
 permissions = ["outbound_http"]
