@@ -18,8 +18,8 @@
       },
       "package": {
         "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/homeassistant.tar.gz",
-        "sha256": "46b3a3f23373d3bc1a978f25888cdf7115a48680514262ebc5691fd44523c852",
-        "size": 71815
+        "sha256": "ac512c1dbad1604f4c2d52111f88bb2eb95853b3357fe8c862b9dc4be6f4f9b7",
+        "size": 72322
       }
     },
     {
@@ -57,8 +57,8 @@
       },
       "package": {
         "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/weather.tar.gz",
-        "sha256": "ac5d62036ac30f53c7c4349160cce764a556b03df8760119a213b4e1c376abca",
-        "size": 67886
+        "sha256": "06d3e2c0da1bfe54d8e6e1c206ce55e126ae22df6f2a32f346b4369de63ee8dc",
+        "size": 67885
       }
     }
   ]
