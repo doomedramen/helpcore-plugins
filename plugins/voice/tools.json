@@ -20,7 +20,7 @@
     },
     {
       "name": "synthesize_speech",
-      "description": "Convert text to speech audio. Use this when a spoken response would be more natural than text — for example when reading a short answer aloud, narrating an action result, or when the user is in a voice conversation. Returns audio that the client can play back. For Google Cloud TTS the voice name can be overridden; for other providers the configured default voice is used.",
+      "description": "Convert text to speech audio. Use this when a spoken response would be more natural than text — for example when reading a short answer aloud, narrating an action result, or when the user is in a voice conversation. Returns a data URL with audio that the client can play back. Supports OpenAI-compatible TTS endpoints and piper-http. Long text is automatically chunked and concatenated.",
       "input_schema": {
         "type": "object",
         "required": ["text"],
