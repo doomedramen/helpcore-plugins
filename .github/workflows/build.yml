@@ -50,17 +50,6 @@ jobs:
             echo "Built dist/${id}.tar.gz ($(wc -c < "dist/${id}.tar.gz") bytes)"
           done
 
-      - name: Publish to rolling release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create plugins-latest \
-            --prerelease \
-            --title "Plugin packages — latest build" \
-            --notes "Automatically built from the latest commit on \`main\`. Not for production use." \
-            2>/dev/null || true
-          gh release upload plugins-latest dist/* --clobber
-
       - name: Generate registry from manifests
         run: |
           cat > /tmp/gen-registry.py << 'PYEOF'
@@ -108,5 +97,16 @@ jobs:
           print(f"Generated registry with {len(plugins)} plugins")
           PYEOF
           python3 /tmp/gen-registry.py
+
+      - name: Publish to rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create plugins-latest \
+            --prerelease \
+            --title "Plugin packages — latest build" \
+            --notes "Automatically built from the latest commit on \`main\`. Not for production use." \
+            2>/dev/null || true
+          gh release upload plugins-latest dist/* --clobber
 
 
