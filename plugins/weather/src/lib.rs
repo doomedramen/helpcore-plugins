@@ -91,7 +91,39 @@ struct GeoResult {
     latitude: f64,
     longitude: f64,
     country: Option<String>,
+    country_code: Option<String>,
     admin1: Option<String>,
+}
+
+fn parse_location_hint(input: &str) -> (&str, Option<&str>) {
+    let trimmed = input.trim();
+    if let Some(comma_pos) = trimmed.find(',') {
+        let name = trimmed[..comma_pos].trim();
+        let hint = trimmed[comma_pos + 1..].trim();
+        (name, Some(hint))
+    } else {
+        (trimmed, None)
+    }
+}
+
+fn country_matches(result: &GeoResult, country_hint: &str) -> bool {
+    let hint = country_hint.trim().to_lowercase();
+    let hint = match hint.as_str() {
+        "uk" => "united kingdom",
+        "usa" => "united states",
+        h => h,
+    };
+    if let Some(ref c) = result.country {
+        if c.to_lowercase() == hint {
+            return true;
+        }
+    }
+    if let Some(ref code) = result.country_code {
+        if code.to_lowercase() == hint {
+            return true;
+        }
+    }
+    false
 }
 
 #[derive(Deserialize)]
@@ -165,23 +197,33 @@ fn weather_get(input: &Value) -> Result<String, String> {
         .min(7)
         .max(1) as u8;
 
+    let (search_name, country_hint) = parse_location_hint(location);
+
     let geo_url = format!(
-        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-        url_encode(location)
+        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=10&language=en&format=json",
+        url_encode(search_name)
     );
     let geo_body = http_get(&geo_url)?;
     let geo: GeoResponse =
         serde_json::from_str(&geo_body).map_err(|e| format!("failed to parse geocoding response: {e}"))?;
 
-    let result = geo
-        .results
-        .and_then(|mut r| r.pop())
-        .ok_or_else(|| {
-            format!(
-                "Location '{}' not found. Try a more specific name, e.g. 'Norfolk, UK' or 'Berlin, Germany'.",
-                location
-            )
-        })?;
+    let mut results = geo.results.ok_or_else(|| {
+        format!(
+            "Location '{}' not found. Try a more specific name, e.g. 'Norwich, UK' or 'Berlin, Germany'.",
+            location
+        )
+    })?;
+
+    let result = match country_hint {
+        Some(hint) => {
+            let pos = results.iter().position(|r| country_matches(r, hint));
+            match pos {
+                Some(i) => results.swap_remove(i),
+                None => results.swap_remove(0),
+            }
+        }
+        None => results.swap_remove(0),
+    };
 
     let place_parts: Vec<&str> = [Some(result.name.as_str()), result.admin1.as_deref(), result.country.as_deref()]
         .into_iter()
