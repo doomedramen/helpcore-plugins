@@ -1,6 +1,6 @@
 id = "homeassistant"
 name = "Home Assistant"
-version = "0.2.0"
+version = "0.3.0"
 description = "Control and monitor your Home Assistant smart home devices"
 tier = "wasm"
 permissions = ["outbound_http"]
