@@ -61,23 +61,53 @@ jobs:
             2>/dev/null || true
           gh release upload plugins-latest dist/*.tar.gz --clobber
 
-      - name: Update registry with new SHA-256 hashes
+      - name: Generate registry from manifests
         run: |
-          for f in dist/*.tar.gz; do
-            id=$(basename "$f" .tar.gz)
-            sha=$(sha256sum "$f" | cut -d' ' -f1)
-            size=$(wc -c < "$f")
-            url="https://github.com/${{ github.repository }}/releases/download/plugins-latest/${id}.tar.gz"
-            jq --arg id "$id" \
-               --arg sha "$sha" \
-               --arg url "$url" \
-               --argjson size "$size" \
-              'if (.plugins | map(.id) | index($id)) != null
-               then (.plugins[] | select(.id == $id)) |= . + {"package": {"url": $url, "sha256": $sha, "size": $size}}
-               else . end' \
-              registry/plugins.json > /tmp/r.json && mv /tmp/r.json registry/plugins.json
-            echo "Updated registry for $id: $sha"
-          done
+          cat > /tmp/gen-registry.py << 'PYEOF'
+          import json, os, tomllib, hashlib, sys
+
+          plugins = []
+
+          for entry in sorted(os.listdir("plugins")):
+              manifest_path = f"plugins/{entry}/manifest.toml"
+              if not os.path.isfile(manifest_path):
+                  continue
+              with open(manifest_path, "rb") as f:
+                  m = tomllib.load(f)
+
+              plugin = {
+                  "id": m["id"],
+                  "name": m["name"],
+                  "description": m["description"],
+                  "version": m["version"],
+                  "tier": m["tier"],
+                  "author": "Martin Page",
+                  "homepage": "https://github.com/doomedramen/helpcore",
+                  "permissions": m.get("permissions", []),
+                  "source": {
+                      "type": "github",
+                      "repo": "doomedramen/helpcore-plugins",
+                      "ref": "plugins-latest",
+                  },
+              }
+
+              # Attach package info from built artifacts
+              pkg_path = f"dist/{m['id']}.tar.gz"
+              if os.path.isfile(pkg_path):
+                  sha = hashlib.sha256(open(pkg_path, "rb").read()).hexdigest()
+                  size = os.path.getsize(pkg_path)
+                  pkg_url = f"https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/{m['id']}.tar.gz"
+                  plugin["package"] = {"url": pkg_url, "sha256": sha, "size": size}
+
+              plugins.append(plugin)
+
+          with open("registry/plugins.json", "w") as f:
+              json.dump({"plugins": plugins}, f, indent=2)
+              f.write("\n")
+
+          print(f"Generated registry with {len(plugins)} plugins")
+          PYEOF
+          python3 /tmp/gen-registry.py
 
       - name: Commit updated registry
         run: |

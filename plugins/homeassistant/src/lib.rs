@@ -129,13 +129,6 @@ struct HaAttributesBrief {
     area_id: Option<String>,
 }
 
-#[derive(Serialize)]
-struct EntityListItem {
-    entity_id: String,
-    name: String,
-    state: String,
-}
-
 #[derive(Deserialize)]
 struct AreaEntry {
     area_id: String,

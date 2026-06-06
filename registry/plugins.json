@@ -4,7 +4,7 @@
       "id": "homeassistant",
       "name": "Home Assistant",
       "description": "Control and monitor your Home Assistant smart home devices — list devices by room or type, check status, turn things on/off, set temperature, lock doors, and more.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "tier": "wasm",
       "author": "Martin Page",
       "homepage": "https://github.com/doomedramen/helpcore",
@@ -18,8 +18,30 @@
       },
       "package": {
         "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/homeassistant.tar.gz",
-        "sha256": "0eff203de2b963d96fa665333583705152dad9dfefa58d0b15d6e39584f34caa",
-        "size": 61302
+        "sha256": "bb159c0e6db927ca32237260d931849e500b46041338694f2cb74ccf54744279",
+        "size": 72680
+      }
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "description": "Weather forecasts and current conditions for any location worldwide — no API key required",
+      "version": "0.1.0",
+      "tier": "wasm",
+      "author": "Martin Page",
+      "homepage": "https://github.com/doomedramen/helpcore",
+      "permissions": [
+        "outbound_http"
+      ],
+      "source": {
+        "type": "github",
+        "repo": "doomedramen/helpcore-plugins",
+        "ref": "plugins-latest"
+      },
+      "package": {
+        "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/weather.tar.gz",
+        "sha256": "be01b30469ae009abbcd769dd7f46aa9a82db86d70c35602cb916729d3654e4c",
+        "size": 64442
       }
     }
   ]
