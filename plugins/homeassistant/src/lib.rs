@@ -158,7 +158,13 @@ struct EntityRegistryEntry {
 fn fetch_room_info(
     config: &Config,
 ) -> Result<(HashMap<String, String>, HashMap<String, String>, HashMap<String, String>), String> {
-    let areas: Vec<AreaEntry> = ha_request(config, "GET", "/config/area_registry", None)?;
+    // /api/config/area_registry is WebSocket-only; use the template API instead.
+    let areas_tmpl = r#"{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set ns.r = ns.r + [{"area_id": a, "name": area_name(a)}] %}{% endfor %}{{ ns.r | to_json }}"#;
+    let areas: Vec<AreaEntry> = ha_request(
+        config, "POST", "/template",
+        Some(serde_json::json!({"template": areas_tmpl})),
+    )?;
+
     let area_names: HashMap<String, String> = areas.iter()
         .map(|a| (a.area_id.clone(), a.name.clone()))
         .collect();
@@ -166,7 +172,12 @@ fn fetch_room_info(
         .map(|a| (a.name, a.area_id))
         .collect();
 
-    let registry: Vec<EntityRegistryEntry> = ha_request(config, "GET", "/config/entity_registry", None)?;
+    let entities_tmpl = r#"{% set ns = namespace(r=[]) %}{% for a in areas() %}{% for e in area_entities(a) %}{% set ns.r = ns.r + [{"entity_id": e, "area_id": a}] %}{% endfor %}{% endfor %}{{ ns.r | to_json }}"#;
+    let registry: Vec<EntityRegistryEntry> = ha_request(
+        config, "POST", "/template",
+        Some(serde_json::json!({"template": entities_tmpl})),
+    )?;
+
     let entity_areas: HashMap<String, String> = registry.into_iter()
         .filter_map(|e| {
             e.area_id.and_then(|aid| area_names.get(&aid).cloned().map(|n| (e.entity_id, n)))
