@@ -7,6 +7,7 @@ wit_bindgen::generate!({
 
         interface host {
             http-request: func(request-json: string) -> result<string, string>;
+            http-request-binary: func(request-json: string) -> result<string, string>;
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
@@ -60,6 +61,8 @@ struct HttpRequest<'a> {
     headers: serde_json::Map<String, Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "body_base64")]
+    body_base64: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -68,10 +71,22 @@ struct HttpResponse {
     body: String,
 }
 
-fn send_http(method: &str, url: &str, headers: serde_json::Map<String, Value>, body: Option<String>) -> Result<String, String> {
-    let req = HttpRequest { method, url: url.to_string(), headers, body };
-    let req_json = serde_json::to_string(&req).map_err(|e| e.to_string())?;
+fn send_http(req: &HttpRequest) -> Result<String, String> {
+    let req_json =
+        serde_json::to_string(req).map_err(|e| format!("failed to serialize request: {e}"))?;
     let resp_json = host::http_request(&req_json)?;
+    let resp: HttpResponse = serde_json::from_str(&resp_json)
+        .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
+    if resp.status >= 400 {
+        return Err(format!("API returned HTTP {}: {}", resp.status, resp.body));
+    }
+    Ok(resp.body)
+}
+
+fn send_http_binary(req: &HttpRequest) -> Result<String, String> {
+    let req_json =
+        serde_json::to_string(req).map_err(|e| format!("failed to serialize request: {e}"))?;
+    let resp_json = host::http_request_binary(&req_json)?;
     let resp: HttpResponse = serde_json::from_str(&resp_json)
         .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
     if resp.status >= 400 {
@@ -99,6 +114,7 @@ fn transcribe_audio(input: &Value) -> Result<String, String> {
 
     let stt_url = host::config_read("stt_url")
         .map_err(|_| "STT URL not configured".to_string())?;
+    let stt_url = stt_url.trim_end_matches('/').to_string();
     let api_key = host::config_read("stt_api_key").ok();
     let model = host::config_read("stt_model").unwrap_or_else(|_| "whisper-1".into());
 
@@ -106,30 +122,11 @@ fn transcribe_audio(input: &Value) -> Result<String, String> {
     let api_key = api_key.as_deref();
 
     let (method, url, headers, body): (&str, String, serde_json::Map<String, Value>, Option<String>) =
-        if url_lower.contains("googleapis") {
-            let mut config = serde_json::json!({
-                "encoding": "LINEAR16",
-                "model": model,
-            });
-            if let Some(lang) = language {
-                config["languageCode"] = Value::String(lang.to_string());
-            }
-            (
-                "POST",
-                format!("{}/v1/speech:recognize", stt_url.trim_end_matches('/')),
-                json_headers(api_key),
-                Some(
-                    serde_json::json!({
-                        "audio": { "uri": audio_url },
-                        "config": config,
-                    })
-                    .to_string(),
-                ),
-            )
-        } else if url_lower.contains("deepgram") {
+        if url_lower.contains("deepgram") {
             let mut u = format!(
-                "{}/v1/listen?smart_format=true&url={}",
-                stt_url.trim_end_matches('/'),
+                "{}/v1/listen?smart_format=true&model={}&url={}",
+                stt_url,
+                url_encode(&model),
                 url_encode(audio_url)
             );
             if let Some(lang) = language {
@@ -148,15 +145,12 @@ fn transcribe_audio(input: &Value) -> Result<String, String> {
             ("POST", stt_url, json_headers(api_key), Some(req_body.to_string()))
         };
 
-    let resp_body = send_http(method, &url, headers, body)?;
+    let resp_body = send_http(&HttpRequest { method, url, headers, body, body_base64: None })?;
 
     let v: Value = serde_json::from_str(&resp_body)
         .map_err(|_| "STT response was not valid JSON".to_string())?;
 
-    let text = if url_lower.contains("googleapis") {
-        v.pointer("/results/0/alternatives/0/transcript")
-            .and_then(Value::as_str)
-    } else if url_lower.contains("deepgram") {
+    let text = if url_lower.contains("deepgram") {
         v.pointer("/results/channels/0/alternatives/0/transcript")
             .and_then(Value::as_str)
     } else {
@@ -177,66 +171,26 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
 
     let tts_url = host::config_read("tts_url")
         .map_err(|_| "TTS URL not configured".to_string())?;
+    let tts_url = tts_url.trim_end_matches('/').to_string();
     let api_key = host::config_read("tts_api_key").ok();
     let model = host::config_read("tts_model").unwrap_or_else(|_| "tts-1".into());
     let voice = host::config_read("tts_voice").unwrap_or_else(|_| "alloy".into());
-
-    let url_lower = tts_url.to_lowercase();
     let api_key = api_key.as_deref();
 
-    if url_lower.contains("googleapis") {
-        let body = serde_json::json!({
-            "input": { "text": text },
-            "voice": { "languageCode": "en-US", "name": voice },
-            "audioConfig": { "audioEncoding": "MP3" },
-        })
-        .to_string();
+    let body = serde_json::json!({
+        "model": model,
+        "input": text,
+        "voice": voice,
+    })
+    .to_string();
 
-        let resp_body = send_http(
-            "POST",
-            &format!("{}/v1/text:synthesize", tts_url.trim_end_matches('/')),
-            json_headers(api_key),
-            Some(body),
-        )?;
+    let resp_body = send_http_binary(&HttpRequest {
+        method: "POST",
+        url: format!("{}/v1/audio/speech", tts_url),
+        headers: json_headers(api_key),
+        body: Some(body),
+        body_base64: None,
+    })?;
 
-        let v: Value = serde_json::from_str(&resp_body)
-            .map_err(|_| "TTS response was not valid JSON".to_string())?;
-
-        let b64 = v
-            .get("audioContent")
-            .and_then(Value::as_str)
-            .ok_or("TTS response missing audioContent")?;
-
-        Ok(format!("data:audio/mp3;base64,{b64}"))
-    } else {
-        let body = serde_json::json!({
-            "model": model,
-            "input": text,
-            "voice": voice,
-        })
-        .to_string();
-
-        let resp_body = send_http(
-            "POST",
-            &format!("{}/v1/audio/speech", tts_url.trim_end_matches('/')),
-            json_headers(api_key),
-            Some(body),
-        )?;
-
-        let v: Value = serde_json::from_str(&resp_body).map_err(|_| {
-            "TTS returned binary audio instead of JSON. \
-             This plugin requires a TTS provider that returns JSON with a base64-encoded \
-             audio content field (e.g. Google Cloud TTS). \
-             For OpenAI-compatible TTS providers that return raw binary audio, \
-             use the voice-bridge instead."
-        })?;
-
-        let b64 = v
-            .get("audioContent")
-            .or_else(|| v.get("audio"))
-            .and_then(Value::as_str)
-            .ok_or("TTS response JSON does not contain 'audioContent' or 'audio' field")?;
-
-        Ok(format!("data:audio/mpeg;base64,{b64}"))
-    }
+    Ok(format!("data:audio/mpeg;base64,{resp_body}"))
 }

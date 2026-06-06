@@ -59,7 +59,7 @@ jobs:
             --title "Plugin packages — latest build" \
             --notes "Automatically built from the latest commit on \`main\`. Not for production use." \
             2>/dev/null || true
-          gh release upload plugins-latest dist/*.tar.gz --clobber
+          gh release upload plugins-latest dist/* --clobber
 
       - name: Generate registry from manifests
         run: |
@@ -101,7 +101,7 @@ jobs:
 
               plugins.append(plugin)
 
-          with open("registry/plugins.json", "w") as f:
+          with open("dist/plugins.json", "w") as f:
               json.dump({"plugins": plugins}, f, indent=2)
               f.write("\n")
 
