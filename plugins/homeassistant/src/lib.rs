@@ -31,8 +31,8 @@ impl Guest for HomeAssistant {
 
         match tool.as_str() {
             "homeassistant_list_entities" => list_entities(&input),
-            "homeassistant_get_state" => get_state(&input),
-            "homeassistant_call_service" => call_service(&input),
+            "homeassistant_get_state"     => get_state(&input),
+            "homeassistant_call_service"  => call_service(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
     }
@@ -52,8 +52,7 @@ fn load_config() -> Result<Config, String> {
         .map_err(|_| "Home Assistant URL is not configured. Set it in the plugin settings.".to_string())?;
     let token = host::config_read("token")
         .map_err(|_| "Home Assistant access token is not configured. Set it in the plugin settings.".to_string())?;
-    let url = url.trim_end_matches('/').to_string();
-    Ok(Config { url, token })
+    Ok(Config { url: url.trim_end_matches('/').to_string(), token })
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -73,10 +72,22 @@ struct HttpResponse {
     body: String,
 }
 
-fn ha_request(config: &Config, method: &str, path: &str, body: Option<Value>) -> Result<Value, String> {
+// Generic: deserialise the HA response body directly into T, skipping unknown fields.
+fn ha_request<T: for<'de> Deserialize<'de>>(
+    config: &Config,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Result<T, String> {
     let mut headers = serde_json::Map::new();
-    headers.insert("Authorization".into(), Value::String(format!("Bearer {}", config.token)));
-    headers.insert("Content-Type".into(), Value::String("application/json".into()));
+    headers.insert(
+        "Authorization".into(),
+        Value::String(format!("Bearer {}", config.token)),
+    );
+    headers.insert(
+        "Content-Type".into(),
+        Value::String("application/json".into()),
+    );
 
     let req = HttpRequest {
         method,
@@ -99,46 +110,55 @@ fn ha_request(config: &Config, method: &str, path: &str, body: Option<Value>) ->
     serde_json::from_str(&resp.body).map_err(|e| format!("failed to parse HA response: {e}"))
 }
 
+// ── Typed HA state structs ────────────────────────────────────────────────────
+
+// Minimal representation for list_entities — serde skips all other attribute
+// fields rather than allocating them, which drastically reduces fuel usage.
+#[derive(Deserialize)]
+struct HaStateBrief {
+    entity_id: String,
+    state: String,
+    attributes: HaAttributesBrief,
+}
+
+#[derive(Deserialize)]
+struct HaAttributesBrief {
+    friendly_name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct EntityListItem {
+    entity_id: String,
+    name: String,
+    state: String,
+}
+
 // ── Tools ─────────────────────────────────────────────────────────────────────
 
 fn list_entities(input: &Value) -> Result<String, String> {
     let config = load_config()?;
     let domain_filter = input.get("domain").and_then(Value::as_str);
 
-    let states: Vec<Value> = ha_request(&config, "GET", "/states", None)?
-        .as_array()
-        .cloned()
-        .ok_or("expected array from /api/states")?;
+    let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
 
-    let entities: Vec<Value> = states
+    // Pre-compute the prefix once rather than formatting inside the hot loop.
+    let prefix: Option<String> = domain_filter.map(|d| format!("{d}."));
+
+    let items: Vec<EntityListItem> = states
         .into_iter()
         .filter(|s| {
-            if let Some(domain) = domain_filter {
-                s.get("entity_id")
-                    .and_then(Value::as_str)
-                    .map(|id| id.starts_with(&format!("{domain}.")))
-                    .unwrap_or(false)
-            } else {
-                true
-            }
+            prefix.as_deref()
+                .map(|p| s.entity_id.starts_with(p))
+                .unwrap_or(true)
         })
         .map(|s| {
-            let entity_id = s.get("entity_id").cloned().unwrap_or(Value::Null);
-            let state = s.get("state").cloned().unwrap_or(Value::Null);
-            let friendly_name = s
-                .get("attributes")
-                .and_then(|a| a.get("friendly_name"))
-                .cloned()
-                .unwrap_or_else(|| entity_id.clone());
-            serde_json::json!({
-                "entity_id": entity_id,
-                "friendly_name": friendly_name,
-                "state": state,
-            })
+            let name = s.attributes.friendly_name
+                .unwrap_or_else(|| s.entity_id.clone());
+            EntityListItem { entity_id: s.entity_id, name, state: s.state }
         })
         .collect();
 
-    serde_json::to_string(&entities).map_err(|e| e.to_string())
+    serde_json::to_string(&items).map_err(|e| e.to_string())
 }
 
 fn get_state(input: &Value) -> Result<String, String> {
@@ -148,7 +168,7 @@ fn get_state(input: &Value) -> Result<String, String> {
         .and_then(Value::as_str)
         .ok_or("entity_id is required")?;
 
-    let state = ha_request(&config, "GET", &format!("/states/{entity_id}"), None)?;
+    let state: Value = ha_request(&config, "GET", &format!("/states/{entity_id}"), None)?;
     serde_json::to_string(&state).map_err(|e| e.to_string())
 }
 
@@ -168,11 +188,16 @@ fn call_service(input: &Value) -> Result<String, String> {
         body.insert("entity_id".into(), Value::String(entity_id.to_string()));
     }
     if let Some(service_data) = input.get("service_data").and_then(Value::as_object) {
-        for (key, value) in service_data {
-            body.insert(key.clone(), value.clone());
+        for (k, v) in service_data {
+            body.insert(k.clone(), v.clone());
         }
     }
 
-    ha_request(&config, "POST", &format!("/services/{domain}/{service}"), Some(Value::Object(body)))?;
+    let _: Value = ha_request(
+        &config,
+        "POST",
+        &format!("/services/{domain}/{service}"),
+        Some(Value::Object(body)),
+    )?;
     Ok(format!("Called {domain}.{service} successfully."))
 }
