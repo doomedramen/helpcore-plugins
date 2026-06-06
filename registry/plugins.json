@@ -4,7 +4,7 @@
       "id": "homeassistant",
       "name": "Home Assistant",
       "description": "Control and monitor your Home Assistant smart home devices",
-      "version": "0.3.0",
+      "version": "0.2.0",
       "tier": "wasm",
       "author": "Martin Page",
       "homepage": "https://github.com/doomedramen/helpcore",
@@ -18,16 +18,16 @@
       },
       "package": {
         "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/homeassistant.tar.gz",
-        "sha256": "ac512c1dbad1604f4c2d52111f88bb2eb95853b3357fe8c862b9dc4be6f4f9b7",
-        "size": 72322
+        "sha256": "a34ad68f0d55f948c4503ab0d54c4393a907108d9be13e3263d789a18ea605e0",
+        "size": 72326
       }
     },
     {
       "id": "voice",
       "name": "Voice",
-      "description": "Voice interface \u2014 connects speech-to-text and text-to-speech services to helpcore",
+      "description": "Convert speech to text and text to speech \u2014 connect any STT/TTS service to add voice input and output",
       "version": "0.1.0",
-      "tier": "bridge",
+      "tier": "wasm",
       "author": "Martin Page",
       "homepage": "https://github.com/doomedramen/helpcore",
       "permissions": [
@@ -37,6 +37,11 @@
         "type": "github",
         "repo": "doomedramen/helpcore-plugins",
         "ref": "plugins-latest"
+      },
+      "package": {
+        "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/voice.tar.gz",
+        "sha256": "a59f192dbc0203b55fb20edbcdc0e90075de01b6300a3099822141b95275557b",
+        "size": 67979
       }
     },
     {
@@ -57,7 +62,7 @@
       },
       "package": {
         "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/weather.tar.gz",
-        "sha256": "06d3e2c0da1bfe54d8e6e1c206ce55e126ae22df6f2a32f346b4369de63ee8dc",
+        "sha256": "5b2bc706741a4b7b1f42a15194ce43354b79d9a1c29e244248e250f0b55177ef",
         "size": 67885
       }
     }
