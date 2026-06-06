@@ -295,6 +295,25 @@ fn call_service(input: &Value) -> Result<String, String> {
                     + "Use homeassistant_list_entities to find valid entity_ids first.",
             );
         }
+        let mut affected = Vec::new();
+        for entry in arr {
+            let entity_id = entry.get("entity_id").and_then(Value::as_str).unwrap_or("?");
+            let friendly = entry
+                .get("attributes")
+                .and_then(|a| a.get("friendly_name"))
+                .and_then(Value::as_str);
+            match friendly {
+                Some(f) => affected.push(format!("{} ({})", f, entity_id)),
+                None => affected.push(entity_id.to_string()),
+            }
+        }
+        if affected.is_empty() {
+            return Ok(format!("Called {domain}.{service} — no entities affected."));
+        }
+        return Ok(format!(
+            "Called {domain}.{service} on: {}.",
+            affected.join(", ")
+        ));
     }
 
     Ok(format!("Called {domain}.{service} successfully."))

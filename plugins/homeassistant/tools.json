@@ -29,7 +29,7 @@
     },
     {
       "name": "homeassistant_call_service",
-      "description": "Call a Home Assistant service to control a device. Use this to turn devices on/off, toggle them, set temperature, lock/unlock, open/close covers, and more.",
+      "description": "Call a Home Assistant service to control a device. Use this to turn devices on/off, toggle them, set temperature, lock/unlock, open/close covers, and more. IMPORTANT: When the user asks to control a SPECIFIC device by name, you MUST pass its entity_id. Only use area_id when the user asks about ALL devices in a room.",
       "input_schema": {
         "type": "object",
         "required": ["domain", "service"],
@@ -44,11 +44,11 @@
           },
           "entity_id": {
             "type": "string",
-            "description": "Target entity ID (optional when targeting an area or all entities in a domain)"
+            "description": "Target a specific device by its entity ID (e.g. light.orb). Required when controlling a single named device — look it up first with homeassistant_list_entities. Only omit when targeting an entire area."
           },
           "area_id": {
             "type": "string",
-            "description": "Target area/room ID to control all devices in that room for the given domain (e.g. 'living_room'). Use the area_id shown by homeassistant_list_entities."
+            "description": "Target ALL devices of this domain in a room (e.g. 'living_room'). WARNING: this affects every matching device in the room, not a single device. Use the area_id shown by homeassistant_list_entities. Do NOT use when the user names a specific device."
           },
           "service_data": {
             "type": "object",
