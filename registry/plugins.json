@@ -13,7 +13,7 @@
       ],
       "source": {
         "type": "github",
-        "repo": "doomedramen/helpcore",
+        "repo": "doomedramen/helpcore-plugins",
         "ref": "plugins-latest"
       },
       "package": {
