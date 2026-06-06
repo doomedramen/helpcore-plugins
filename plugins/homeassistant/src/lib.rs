@@ -144,11 +144,14 @@ struct EntityRegistryEntry {
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
 
-fn fetch_room_info(config: &Config) -> (HashMap<String, String>, HashMap<String, String>) {
+fn fetch_room_info(config: &Config) -> (HashMap<String, String>, HashMap<String, String>, HashMap<String, String>) {
     let areas: Vec<AreaEntry> = ha_request(config, "GET", "/config/area_registry", None)
         .unwrap_or_default();
-    let area_names: HashMap<String, String> = areas.into_iter()
-        .map(|a| (a.area_id, a.name))
+    let area_names: HashMap<String, String> = areas.iter()
+        .map(|a| (a.area_id.clone(), a.name.clone()))
+        .collect();
+    let name_to_area_id: HashMap<String, String> = areas.into_iter()
+        .map(|a| (a.name, a.area_id))
         .collect();
 
     let registry: Vec<EntityRegistryEntry> = ha_request(config, "GET", "/config/entity_registry", None)
@@ -159,7 +162,7 @@ fn fetch_room_info(config: &Config) -> (HashMap<String, String>, HashMap<String,
         })
         .collect();
 
-    (area_names, entity_areas)
+    (area_names, entity_areas, name_to_area_id)
 }
 
 fn list_entities(input: &Value) -> Result<String, String> {
@@ -168,12 +171,13 @@ fn list_entities(input: &Value) -> Result<String, String> {
 
     let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
 
-    let (area_names, entity_areas) = fetch_room_info(&config);
+    let (area_names, entity_areas, name_to_area_id) = fetch_room_info(&config);
 
     let prefix: Option<String> = domain_filter.map(|d| format!("{d}."));
 
-    let mut rooms: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
-    let mut unknown: Vec<(String, String)> = Vec::new();
+    // room_name -> (area_id, [(entity_id, friendly_name, state)])
+    let mut rooms: BTreeMap<String, (Option<String>, Vec<(String, String, String)>)> = BTreeMap::new();
+    let mut unknown: Vec<(String, String, String)> = Vec::new();
 
     for s in states {
         if let Some(ref p) = prefix {
@@ -186,18 +190,27 @@ fn list_entities(input: &Value) -> Result<String, String> {
 
         let room = entity_areas.get(&s.entity_id)
             .cloned()
-            .or_else(|| s.attributes.area_id.and_then(|aid| area_names.get(&aid).cloned()));
+            .or_else(|| s.attributes.area_id.as_ref().and_then(|aid| area_names.get(aid).cloned()));
+
+        let area_id = s.attributes.area_id.clone()
+            .or_else(|| room.as_ref().and_then(|r| name_to_area_id.get(r).cloned()));
 
         match room {
-            Some(r) => rooms.entry(r).or_default().push((name, s.state)),
-            None => unknown.push((name, s.state)),
+            Some(r) => {
+                let entry = rooms.entry(r).or_insert_with(|| (area_id.clone(), Vec::new()));
+                if entry.0.is_none() {
+                    entry.0 = area_id.clone();
+                }
+                entry.1.push((s.entity_id, name, s.state));
+            },
+            None => unknown.push((s.entity_id, name, s.state)),
         }
     }
 
     for list in rooms.values_mut() {
-        list.sort_by(|a, b| a.0.cmp(&b.0));
+        list.1.sort_by(|a, b| a.1.cmp(&b.1));
     }
-    unknown.sort_by(|a, b| a.0.cmp(&b.0));
+    unknown.sort_by(|a, b| a.1.cmp(&b.1));
 
     if rooms.is_empty() && unknown.is_empty() {
         let domain_msg = domain_filter.map(|d| format!(" in domain '{d}'")).unwrap_or_default();
@@ -212,17 +225,20 @@ fn list_entities(input: &Value) -> Result<String, String> {
     let mut result = String::new();
     result.push_str(&header);
 
-    for (room, entities) in &rooms {
-        result.push_str(&format!("\n\n{}:", room));
-        for (name, state) in entities {
-            result.push_str(&format!("\n  {} — {}", name, state));
+    for (room, (area_id, entities)) in &rooms {
+        match area_id {
+            Some(aid) => result.push_str(&format!("\n\n{} (area_id: {}):", room, aid)),
+            None => result.push_str(&format!("\n\n{}:", room)),
+        }
+        for (entity_id, name, state) in entities {
+            result.push_str(&format!("\n  {} ({}) — {}", name, entity_id, state));
         }
     }
 
     if !unknown.is_empty() {
         result.push_str("\n\nOther:");
-        for (name, state) in &unknown {
-            result.push_str(&format!("\n  {} — {}", name, state));
+        for (entity_id, name, state) in &unknown {
+            result.push_str(&format!("\n  {} ({}) — {}", name, entity_id, state));
         }
     }
 
@@ -255,17 +271,31 @@ fn call_service(input: &Value) -> Result<String, String> {
     if let Some(entity_id) = input.get("entity_id").and_then(Value::as_str) {
         body.insert("entity_id".into(), Value::String(entity_id.to_string()));
     }
+    if let Some(area_id) = input.get("area_id").and_then(Value::as_str) {
+        body.insert("area_id".into(), Value::String(area_id.to_string()));
+    }
     if let Some(service_data) = input.get("service_data").and_then(Value::as_object) {
         for (k, v) in service_data {
             body.insert(k.clone(), v.clone());
         }
     }
 
-    let _: Value = ha_request(
+    let res: Value = ha_request(
         &config,
         "POST",
         &format!("/services/{domain}/{service}"),
         Some(Value::Object(body)),
     )?;
+
+    if let Some(arr) = res.as_array() {
+        if arr.is_empty() && input.get("entity_id").or(input.get("area_id")).is_some() {
+            return Err(
+                "No entities were matched — the entity_id or area_id may be wrong. "
+                    .to_string()
+                    + "Use homeassistant_list_entities to find valid entity_ids first.",
+            );
+        }
+    }
+
     Ok(format!("Called {domain}.{service} successfully."))
 }

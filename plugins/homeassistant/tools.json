@@ -46,6 +46,10 @@
             "type": "string",
             "description": "Target entity ID (optional when targeting an area or all entities in a domain)"
           },
+          "area_id": {
+            "type": "string",
+            "description": "Target area/room ID to control all devices in that room for the given domain (e.g. 'living_room'). Use the area_id shown by homeassistant_list_entities."
+          },
           "service_data": {
             "type": "object",
             "description": "Additional service parameters, e.g. {\"temperature\": 21} for climate or {\"brightness_pct\": 80} for lights"
