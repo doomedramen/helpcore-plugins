@@ -17,9 +17,9 @@
         "ref": "plugins-latest"
       },
       "package": {
-        "url": "https://github.com/doomedramen/helpcore/releases/download/plugins-latest/homeassistant.tar.gz",
-        "sha256": "595b12915b5cc60c984e9343b28d2c44b23cb28194d96fb048449c836324c561",
-        "size": 60182
+        "url": "https://github.com/doomedramen/helpcore-plugins/releases/download/plugins-latest/homeassistant.tar.gz",
+        "sha256": "0cb401d3504963d8e165d74120658213175ed8543ea8967ac96b400d6c8843a6",
+        "size": 60180
       }
     }
   ]
