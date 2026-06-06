@@ -1,0 +1,40 @@
+{
+  "tools": [
+    {
+      "name": "transcribe_audio",
+      "description": "Transcribe speech from an audio file URL into text. Use this when the user provides audio input (a voice message, recording, or audio file URL). Supports Google Cloud STT, Deepgram, and any provider that accepts audio URLs. Returns the transcribed text.",
+      "input_schema": {
+        "type": "object",
+        "required": ["audio_url"],
+        "properties": {
+          "audio_url": {
+            "type": "string",
+            "description": "Publicly accessible URL of the audio file to transcribe (supported formats: WAV, MP3, FLAC, OGG, WEBM)"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language code for transcription (e.g. 'en', 'en-US', 'fr', 'de'). Optional — provider will auto-detect if not specified."
+          }
+        }
+      }
+    },
+    {
+      "name": "synthesize_speech",
+      "description": "Convert text to speech audio. Use this when a spoken response would be more natural than text — for example when reading a short answer aloud, narrating an action result, or when the user is in a voice conversation. Returns audio that the client can play back. For Google Cloud TTS the voice name can be overridden; for other providers the configured default voice is used.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text to convert to speech. Keep concise — long text takes longer to synthesize."
+          },
+          "voice": {
+            "type": "string",
+            "description": "Voice override (optional). Examples: 'en-US-Wavenet-D', 'en-GB-Standard-A', 'alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'"
+          }
+        }
+      }
+    }
+  ]
+}

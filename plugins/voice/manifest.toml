@@ -1,18 +1,56 @@
 id = "voice"
 name = "Voice"
 version = "0.1.0"
-description = "Voice interface — connects speech-to-text and text-to-speech services to helpcore"
-tier = "bridge"
+description = "Convert speech to text and text to speech — connect any STT/TTS service to add voice input and output"
+tier = "wasm"
 permissions = ["outbound_http"]
-
-[bridge]
-default_port = 8765
-health_path = "/health"
+allowed_hosts = ["*"]
 
 [[config_schema]]
-key = "endpoint"
-label = "Bridge URL"
+key = "stt_url"
+label = "STT API URL"
 type = "url"
-required = true
-hint = "URL where the voice bridge is running, e.g. http://localhost:8765"
-role = "bridge_endpoint"
+required = false
+hint = "Base URL for speech-to-text (Google Cloud STT, Deepgram, etc.)"
+
+[[config_schema]]
+key = "stt_api_key"
+label = "STT API Key"
+type = "secret"
+required = false
+hint = "API key for your speech-to-text provider"
+
+[[config_schema]]
+key = "stt_model"
+label = "STT Model"
+type = "string"
+required = false
+hint = "Model name (default: whisper-1)"
+
+[[config_schema]]
+key = "tts_url"
+label = "TTS API URL"
+type = "url"
+required = false
+hint = "Base URL for text-to-speech (Google Cloud TTS, OpenAI-compatible, etc.)"
+
+[[config_schema]]
+key = "tts_api_key"
+label = "TTS API Key"
+type = "secret"
+required = false
+hint = "API key for your text-to-speech provider"
+
+[[config_schema]]
+key = "tts_model"
+label = "TTS Model"
+type = "string"
+required = false
+hint = "Model name (default: tts-1)"
+
+[[config_schema]]
+key = "tts_voice"
+label = "TTS Voice"
+type = "string"
+required = false
+hint = "Default voice (default: alloy)"

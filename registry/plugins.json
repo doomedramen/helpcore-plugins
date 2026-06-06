@@ -4,7 +4,7 @@
       "id": "homeassistant",
       "name": "Home Assistant",
       "description": "Control and monitor your Home Assistant smart home devices",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "tier": "wasm",
       "author": "Martin Page",
       "homepage": "https://github.com/doomedramen/helpcore",

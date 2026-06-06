@@ -1,8 +1,8 @@
 [workspace]
 
 [package]
-name = "homeassistant"
-version = "0.3.0"
+name = "voice"
+version = "0.1.0"
 edition = "2021"
 
 [lib]
