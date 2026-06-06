@@ -1,0 +1,57 @@
+{
+  "tools": [
+    {
+      "name": "homeassistant_list_entities",
+      "description": "List Home Assistant entities with their current state. Optionally filter by domain (e.g. light, switch, climate, cover, lock, fan, media_player, sensor, binary_sensor).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Entity domain to filter by (optional). Examples: light, switch, climate, cover, lock"
+          }
+        }
+      }
+    },
+    {
+      "name": "homeassistant_get_state",
+      "description": "Get the full state and attributes of a single Home Assistant entity.",
+      "input_schema": {
+        "type": "object",
+        "required": ["entity_id"],
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "description": "The entity ID, e.g. light.living_room"
+          }
+        }
+      }
+    },
+    {
+      "name": "homeassistant_call_service",
+      "description": "Call a Home Assistant service to control a device. Use this to turn devices on/off, toggle them, set temperature, lock/unlock, open/close covers, and more.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain", "service"],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Service domain, e.g. light, switch, climate, cover, lock, fan"
+          },
+          "service": {
+            "type": "string",
+            "description": "Service name, e.g. turn_on, turn_off, toggle, set_temperature, lock, unlock, open_cover, close_cover"
+          },
+          "entity_id": {
+            "type": "string",
+            "description": "Target entity ID (optional when targeting an area or all entities in a domain)"
+          },
+          "service_data": {
+            "type": "object",
+            "description": "Additional service parameters, e.g. {\"temperature\": 21} for climate or {\"brightness_pct\": 80} for lights"
+          }
+        }
+      }
+    }
+  ]
+}

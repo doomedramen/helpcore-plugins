@@ -1,0 +1,26 @@
+{
+  "plugins": [
+    {
+      "id": "homeassistant",
+      "name": "Home Assistant",
+      "description": "Control and monitor your Home Assistant smart home devices — list devices by room or type, check status, turn things on/off, set temperature, lock doors, and more.",
+      "version": "0.1.0",
+      "tier": "wasm",
+      "author": "Martin Page",
+      "homepage": "https://github.com/doomedramen/helpcore",
+      "permissions": [
+        "outbound_http"
+      ],
+      "source": {
+        "type": "github",
+        "repo": "doomedramen/helpcore",
+        "ref": "plugins-latest"
+      },
+      "package": {
+        "url": "https://github.com/doomedramen/helpcore/releases/download/plugins-latest/homeassistant.tar.gz",
+        "sha256": "595b12915b5cc60c984e9343b28d2c44b23cb28194d96fb048449c836324c561",
+        "size": 60182
+      }
+    }
+  ]
+}
