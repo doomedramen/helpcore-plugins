@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "weather_get",
+      "description": "Get current conditions and weather forecast for any location worldwide. Returns temperature, conditions, precipitation, and wind speed. Supports up to 7 days of forecast data.",
+      "input_schema": {
+        "type": "object",
+        "required": ["location"],
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City name, optionally with country or region for disambiguation (e.g. 'Norfolk, UK', 'Tokyo', 'Berlin, Germany', 'New York', 'Paris')"
+          },
+          "days": {
+            "type": "number",
+            "description": "Number of forecast days to include (1-7, default 3)"
+          }
+        }
+      }
+    }
+  ]
+}

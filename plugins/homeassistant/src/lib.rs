@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::{BTreeMap, HashMap};
 
 wit_bindgen::generate!({
     inline: r#"
@@ -124,6 +125,8 @@ struct HaStateBrief {
 #[derive(Deserialize)]
 struct HaAttributesBrief {
     friendly_name: Option<String>,
+    #[serde(default)]
+    area_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -133,7 +136,38 @@ struct EntityListItem {
     state: String,
 }
 
+#[derive(Deserialize)]
+struct AreaEntry {
+    area_id: String,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct EntityRegistryEntry {
+    entity_id: String,
+    #[serde(default)]
+    area_id: Option<String>,
+}
+
 // ── Tools ─────────────────────────────────────────────────────────────────────
+
+fn fetch_room_info(config: &Config) -> (HashMap<String, String>, HashMap<String, String>) {
+    let areas: Vec<AreaEntry> = ha_request(config, "GET", "/config/area_registry", None)
+        .unwrap_or_default();
+    let area_names: HashMap<String, String> = areas.into_iter()
+        .map(|a| (a.area_id, a.name))
+        .collect();
+
+    let registry: Vec<EntityRegistryEntry> = ha_request(config, "GET", "/config/entity_registry", None)
+        .unwrap_or_default();
+    let entity_areas: HashMap<String, String> = registry.into_iter()
+        .filter_map(|e| {
+            e.area_id.and_then(|aid| area_names.get(&aid).cloned().map(|n| (e.entity_id, n)))
+        })
+        .collect();
+
+    (area_names, entity_areas)
+}
 
 fn list_entities(input: &Value) -> Result<String, String> {
     let config = load_config()?;
@@ -141,24 +175,65 @@ fn list_entities(input: &Value) -> Result<String, String> {
 
     let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
 
-    // Pre-compute the prefix once rather than formatting inside the hot loop.
+    let (area_names, entity_areas) = fetch_room_info(&config);
+
     let prefix: Option<String> = domain_filter.map(|d| format!("{d}."));
 
-    let items: Vec<EntityListItem> = states
-        .into_iter()
-        .filter(|s| {
-            prefix.as_deref()
-                .map(|p| s.entity_id.starts_with(p))
-                .unwrap_or(true)
-        })
-        .map(|s| {
-            let name = s.attributes.friendly_name
-                .unwrap_or_else(|| s.entity_id.clone());
-            EntityListItem { entity_id: s.entity_id, name, state: s.state }
-        })
-        .collect();
+    let mut rooms: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    let mut unknown: Vec<(String, String)> = Vec::new();
 
-    serde_json::to_string(&items).map_err(|e| e.to_string())
+    for s in states {
+        if let Some(ref p) = prefix {
+            if !s.entity_id.starts_with(p) {
+                continue;
+            }
+        }
+
+        let name = s.attributes.friendly_name.unwrap_or_else(|| s.entity_id.clone());
+
+        let room = entity_areas.get(&s.entity_id)
+            .cloned()
+            .or_else(|| s.attributes.area_id.and_then(|aid| area_names.get(&aid).cloned()));
+
+        match room {
+            Some(r) => rooms.entry(r).or_default().push((name, s.state)),
+            None => unknown.push((name, s.state)),
+        }
+    }
+
+    for list in rooms.values_mut() {
+        list.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+    unknown.sort_by(|a, b| a.0.cmp(&b.0));
+
+    if rooms.is_empty() && unknown.is_empty() {
+        let domain_msg = domain_filter.map(|d| format!(" in domain '{d}'")).unwrap_or_default();
+        return Ok(format!("No entities found{domain_msg}."));
+    }
+
+    let header = match domain_filter {
+        Some(d) => format!("Home Assistant entities (domain: {d}):"),
+        None => "Home Assistant entities:".to_string(),
+    };
+
+    let mut result = String::new();
+    result.push_str(&header);
+
+    for (room, entities) in &rooms {
+        result.push_str(&format!("\n\n{}:", room));
+        for (name, state) in entities {
+            result.push_str(&format!("\n  {} — {}", name, state));
+        }
+    }
+
+    if !unknown.is_empty() {
+        result.push_str("\n\nOther:");
+        for (name, state) in &unknown {
+            result.push_str(&format!("\n  {} — {}", name, state));
+        }
+    }
+
+    Ok(result)
 }
 
 fn get_state(input: &Value) -> Result<String, String> {

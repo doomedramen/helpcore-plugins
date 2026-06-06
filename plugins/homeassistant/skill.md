@@ -14,6 +14,6 @@ You have access to the user's Home Assistant smart home via three tools.
 
 **Rooms and areas**: HA entity_ids and friendly names often include the room name (e.g. `light.kitchen_ceiling`). When a user asks about a room, list entities for that domain and match by name.
 
-**Presenting results**: `homeassistant_list_entities` returns `entity_id`, `name`, and `state` — use `name` in your responses, not raw entity_ids. For detailed status (e.g. brightness, temperature), call `homeassistant_get_state` on the specific entity. Describe state in natural language ("The living room lights are on at 60% brightness").
+**Presenting results**: `homeassistant_list_entities` returns a numbered list of entities with `name` and `state`. Present these directly to the user — do not add extra commentary. For detailed status (e.g. brightness, temperature), call `homeassistant_get_state` on the specific entity. Describe state in natural language ("The living room lights are on at 60% brightness").
 
 **Errors**: If a call fails with a 401 error, tell the user their access token may be wrong and they should update it in plugin settings.
