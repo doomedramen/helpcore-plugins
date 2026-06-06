@@ -1,0 +1,18 @@
+id = "voice"
+name = "Voice"
+version = "0.1.0"
+description = "Voice interface — connects speech-to-text and text-to-speech services to helpcore"
+tier = "bridge"
+permissions = ["outbound_http"]
+
+[bridge]
+default_port = 8765
+health_path = "/health"
+
+[[config_schema]]
+key = "endpoint"
+label = "Bridge URL"
+type = "url"
+required = true
+hint = "URL where the voice bridge is running, e.g. http://localhost:8765"
+role = "bridge_endpoint"

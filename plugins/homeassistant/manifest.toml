@@ -1,0 +1,21 @@
+id = "homeassistant"
+name = "Home Assistant"
+version = "0.1.0"
+description = "Control and monitor your Home Assistant smart home devices"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = ["*"]
+
+[[config_schema]]
+key = "url"
+label = "Home Assistant URL"
+type = "url"
+required = true
+hint = "e.g. http://homeassistant.local:8123"
+
+[[config_schema]]
+key = "token"
+label = "Long-Lived Access Token"
+type = "secret"
+required = true
+hint = "Create one in your HA profile under Security → Long-lived access tokens"
