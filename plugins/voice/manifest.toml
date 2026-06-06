@@ -1,6 +1,6 @@
 id = "voice"
 name = "Voice"
-version = "0.2.1"
+version = "0.2.2"
 description = "Convert speech to text and text to speech — connect any STT/TTS service to add voice input and output"
 tier = "wasm"
 permissions = ["outbound_http"]

@@ -208,12 +208,14 @@ fn weather_get(input: &Value) -> Result<String, String> {
     let geo: GeoResponse =
         serde_json::from_str(&geo_body).map_err(|e| format!("failed to parse geocoding response: {e}"))?;
 
-    let mut results = geo.results.ok_or_else(|| {
-        format!(
-            "Location '{}' not found. Try a more specific name, e.g. 'Norwich, UK' or 'Berlin, Germany'.",
-            location
-        )
-    })?;
+    let mut results = geo.results
+        .filter(|r| !r.is_empty())
+        .ok_or_else(|| {
+            format!(
+                "Location '{}' not found. Try a more specific name, e.g. 'Norwich, UK' or 'Berlin, Germany'.",
+                location
+            )
+        })?;
 
     let result = match country_hint {
         Some(hint) => {
@@ -253,7 +255,16 @@ fn weather_get(input: &Value) -> Result<String, String> {
     }
 
     out.push_str("Forecast:\n");
-    for i in 0..fc.daily.time.len() {
+    let n = fc.daily.time.len();
+    if fc.daily.temperature_2m_max.len() < n
+        || fc.daily.temperature_2m_min.len() < n
+        || fc.daily.weathercode.len() < n
+        || fc.daily.precipitation_sum.len() < n
+        || fc.daily.wind_speed_10m_max.len() < n
+    {
+        return Err("Weather API returned inconsistent forecast data.".to_string());
+    }
+    for i in 0..n {
         let date = &fc.daily.time[i];
         let max = fc.daily.temperature_2m_max[i];
         let min = fc.daily.temperature_2m_min[i];

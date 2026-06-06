@@ -174,20 +174,34 @@ fn split_text(text: &str, max_chars: usize) -> Vec<String> {
     let mut start = 0;
 
     while start < text.len() {
-        if start + max_chars >= text.len() {
+        // Find the largest valid UTF-8 char boundary no more than max_chars bytes ahead.
+        let raw_end = (start + max_chars).min(text.len());
+        let mut hard_end = raw_end;
+        while hard_end > start && !text.is_char_boundary(hard_end) {
+            hard_end -= 1;
+        }
+
+        if hard_end >= text.len() {
             chunks.push(text[start..].to_string());
             break;
         }
 
-        let end = text[start..start + max_chars]
-            .rfind(|c| c == '.' || c == '!' || c == '?' || c == '\n')
+        let slice = &text[start..hard_end];
+
+        let end = slice
+            // Sentence-ending ASCII punctuation — pos+1 is always a char boundary.
+            .rfind(|c| matches!(c, '.' | '!' | '?' | '\n'))
             .map(|pos| start + pos + 1)
             .or_else(|| {
-                text[start..start + max_chars]
+                slice
                     .rfind(|c: char| c.is_whitespace() && c != '\n')
-                    .map(|pos| start + pos + 1)
+                    .map(|pos| {
+                        // Advance past the full whitespace character (may be multi-byte).
+                        let ch_len = slice[pos..].chars().next().map_or(1, |c| c.len_utf8());
+                        start + pos + ch_len
+                    })
             })
-            .unwrap_or(start + max_chars);
+            .unwrap_or(hard_end);
 
         chunks.push(text[start..end].to_string());
         start = end;
@@ -254,6 +268,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     }
 
     let remaining = bytes.len() - i;
+    if remaining == 1 {
+        return Err("invalid base64: input length produces an impossible 1-byte remainder".to_string());
+    }
     if remaining >= 2 {
         let a = b64_char_value(bytes[i]).ok_or("invalid base64 character")?;
         let b = b64_char_value(bytes[i + 1]).ok_or("invalid base64 character")?;
@@ -271,6 +288,26 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// Returns the byte offset where the WAV `data` chunk payload begins by walking
+/// the RIFF chunk list.  Returns `None` if the file is too short, malformed, or
+/// has no `data` chunk.
+fn find_wav_data_offset(wav: &[u8]) -> Option<usize> {
+    if wav.len() < 12 || &wav[0..4] != b"RIFF" || &wav[8..12] != b"WAVE" {
+        return None;
+    }
+    let mut pos = 12usize;
+    while pos + 8 <= wav.len() {
+        let chunk_id = &wav[pos..pos + 4];
+        let chunk_size = u32::from_le_bytes([wav[pos+4], wav[pos+5], wav[pos+6], wav[pos+7]]) as usize;
+        if chunk_id == b"data" {
+            return Some(pos + 8); // payload starts after the 8-byte chunk header
+        }
+        // Chunks are padded to an even byte boundary.
+        pos += 8 + chunk_size + (chunk_size & 1);
+    }
+    None
+}
+
 fn concatenate_audio(parts: &[Vec<u8>]) -> Result<Vec<u8>, String> {
     if parts.is_empty() {
         return Err("no audio parts to concatenate".to_string());
@@ -282,18 +319,25 @@ fn concatenate_audio(parts: &[Vec<u8>]) -> Result<Vec<u8>, String> {
     let is_wav = parts[0].starts_with(b"RIFF");
 
     if is_wav {
-        let mut header = parts[0][..44].to_vec();
+        // Parse the first part's RIFF structure to find where the data chunk begins.
+        let data_offset = find_wav_data_offset(&parts[0])
+            .ok_or("first WAV part has no data chunk")?;
+        // `header` contains everything up to (but not including) the PCM payload,
+        // including the 8-byte `data` chunk header whose size field we'll update.
+        let mut header = parts[0][..data_offset].to_vec();
         let mut data = Vec::new();
-        data.extend_from_slice(&parts[0][44..]);
+        data.extend_from_slice(&parts[0][data_offset..]);
         for chunk in &parts[1..] {
-            if chunk.len() <= 44 {
-                continue;
+            if let Some(off) = find_wav_data_offset(chunk) {
+                data.extend_from_slice(&chunk[off..]);
             }
-            data.extend_from_slice(&chunk[44..]);
         }
+        // Update RIFF chunk size (bytes 4-7): total file size minus the 8-byte RIFF header.
+        let riff_size = (header.len() + data.len() - 8) as u32;
+        header[4..8].copy_from_slice(&riff_size.to_le_bytes());
+        // Update `data` chunk size (4 bytes immediately before the payload offset).
         let data_size = data.len() as u32;
-        header[4..8].copy_from_slice(&(data_size + 36).to_le_bytes());
-        header[40..44].copy_from_slice(&data_size.to_le_bytes());
+        header[data_offset - 4..data_offset].copy_from_slice(&data_size.to_le_bytes());
         let mut result = header;
         result.extend(data);
         Ok(result)
@@ -344,7 +388,11 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
     let tts_url = tts_url.trim_end_matches('/').to_string();
     let api_key = host::config_read("tts_api_key").ok();
     let model = host::config_read("tts_model").unwrap_or_else(|_| "tts-1".into());
-    let voice = host::config_read("tts_voice").unwrap_or_else(|_| "alloy".into());
+    let voice = input
+        .get("voice")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| host::config_read("tts_voice").unwrap_or_else(|_| "alloy".into()));
     let api_key = api_key.as_deref();
 
     let chunks = split_text(text, MAX_CHARS_PER_CHUNK);
@@ -368,6 +416,20 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
     }
 
     let combined = concatenate_audio(&audio_parts)?;
+    // Detect the audio format from magic bytes so the MIME type is correct
+    // regardless of which TTS backend is configured.
+    let mime = if combined.len() >= 12
+        && combined.starts_with(b"RIFF")
+        && &combined[8..12] == b"WAVE"
+    {
+        "audio/wav"
+    } else if combined.starts_with(b"OggS") {
+        "audio/ogg"
+    } else if combined.starts_with(b"fLaC") {
+        "audio/flac"
+    } else {
+        "audio/mpeg" // MP3 and other compressed formats
+    };
     let b64 = base64_encode(&combined);
-    Ok(format!("data:audio/mpeg;base64,{b64}"))
+    Ok(format!("data:{mime};base64,{b64}"))
 }

@@ -56,6 +56,17 @@ fn load_config() -> Result<Config, String> {
     Ok(Config { url: url.trim_end_matches('/').to_string(), token })
 }
 
+/// Reject values that could escape the intended API path via path traversal.
+/// Allows any non-empty ASCII string that contains neither '/' nor "..".
+fn validate_url_path_segment(value: &str, field: &str) -> Result<(), String> {
+    if value.is_empty() || value.contains('/') || value.contains("..") || !value.is_ascii() {
+        return Err(format!(
+            "invalid {field} '{value}': must be non-empty ASCII without '/' or '..'"
+        ));
+    }
+    Ok(())
+}
+
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -144,9 +155,10 @@ struct EntityRegistryEntry {
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
 
-fn fetch_room_info(config: &Config) -> (HashMap<String, String>, HashMap<String, String>, HashMap<String, String>) {
-    let areas: Vec<AreaEntry> = ha_request(config, "GET", "/config/area_registry", None)
-        .unwrap_or_default();
+fn fetch_room_info(
+    config: &Config,
+) -> Result<(HashMap<String, String>, HashMap<String, String>, HashMap<String, String>), String> {
+    let areas: Vec<AreaEntry> = ha_request(config, "GET", "/config/area_registry", None)?;
     let area_names: HashMap<String, String> = areas.iter()
         .map(|a| (a.area_id.clone(), a.name.clone()))
         .collect();
@@ -154,15 +166,14 @@ fn fetch_room_info(config: &Config) -> (HashMap<String, String>, HashMap<String,
         .map(|a| (a.name, a.area_id))
         .collect();
 
-    let registry: Vec<EntityRegistryEntry> = ha_request(config, "GET", "/config/entity_registry", None)
-        .unwrap_or_default();
+    let registry: Vec<EntityRegistryEntry> = ha_request(config, "GET", "/config/entity_registry", None)?;
     let entity_areas: HashMap<String, String> = registry.into_iter()
         .filter_map(|e| {
             e.area_id.and_then(|aid| area_names.get(&aid).cloned().map(|n| (e.entity_id, n)))
         })
         .collect();
 
-    (area_names, entity_areas, name_to_area_id)
+    Ok((area_names, entity_areas, name_to_area_id))
 }
 
 fn list_entities(input: &Value) -> Result<String, String> {
@@ -171,7 +182,14 @@ fn list_entities(input: &Value) -> Result<String, String> {
 
     let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
 
-    let (area_names, entity_areas, name_to_area_id) = fetch_room_info(&config);
+    let room_warning: Option<String>;
+    let (area_names, entity_areas, name_to_area_id) = match fetch_room_info(&config) {
+        Ok(info) => { room_warning = None; info }
+        Err(e) => {
+            room_warning = Some(format!("\n\n(Note: room grouping unavailable — {})", e));
+            (HashMap::new(), HashMap::new(), HashMap::new())
+        }
+    };
 
     let prefix: Option<String> = domain_filter.map(|d| format!("{d}."));
 
@@ -242,6 +260,9 @@ fn list_entities(input: &Value) -> Result<String, String> {
         }
     }
 
+    if let Some(w) = room_warning {
+        result.push_str(&w);
+    }
     Ok(result)
 }
 
@@ -251,6 +272,7 @@ fn get_state(input: &Value) -> Result<String, String> {
         .get("entity_id")
         .and_then(Value::as_str)
         .ok_or("entity_id is required")?;
+    validate_url_path_segment(entity_id, "entity_id")?;
 
     let state: Value = ha_request(&config, "GET", &format!("/states/{entity_id}"), None)?;
     serde_json::to_string(&state).map_err(|e| e.to_string())
@@ -266,6 +288,8 @@ fn call_service(input: &Value) -> Result<String, String> {
         .get("service")
         .and_then(Value::as_str)
         .ok_or("service is required")?;
+    validate_url_path_segment(domain, "domain")?;
+    validate_url_path_segment(service, "service")?;
 
     let mut body = serde_json::Map::new();
     if let Some(entity_id) = input.get("entity_id").and_then(Value::as_str) {
