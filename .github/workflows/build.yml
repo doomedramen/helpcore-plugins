@@ -25,7 +25,7 @@ jobs:
       - name: Install wasm-tools
         uses: taiki-e/install-action@v2
         with:
-          tool: wasm-tools
+          tool: wasm-tools@1.251
 
       - name: Cache Rust (plugin workspaces)
         uses: Swatinem/rust-cache@v2
@@ -33,6 +33,9 @@ jobs:
           workspaces: plugins/homeassistant
 
       - name: Build WASM plugins
+        env:
+          SOURCE_DATE_EPOCH: 0
+          GZIP: -n
         run: |
           mkdir -p dist
           for dir in plugins/*/; do
@@ -45,7 +48,10 @@ jobs:
             wasm-tools component new \
               "$dir/target/wasm32-unknown-unknown/release/${lib}.wasm" \
               -o "$dir/plugin.wasm"
-            tar -czf "dist/${id}.tar.gz" -C "$dir" \
+            # Deterministic tarball: sort entries, epoch mtime, consistent owner
+            tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" \
+              --owner=0 --group=0 --numeric-owner \
+              -czf "dist/${id}.tar.gz" -C "$dir" \
               manifest.toml tools.json skill.md plugin.wasm
             echo "Built dist/${id}.tar.gz ($(wc -c < "dist/${id}.tar.gz") bytes)"
           done
