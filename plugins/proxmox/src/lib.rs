@@ -163,14 +163,20 @@ fn http_execute(
     headers: serde_json::Map<String, Value>,
     body: Option<String>,
 ) -> Result<(u16, String), String> {
+    let full_url = format!("{host}/api2/json{path}");
     let req = HttpRequest {
         method,
-        url: format!("{host}/api2/json{path}"),
+        url: full_url.clone(),
         headers,
         body,
     };
     let req_json = serde_json::to_string(&req).map_err(|e| e.to_string())?;
-    let resp_json = host::http_request(&req_json)?;
+    let resp_json = host::http_request(&req_json)
+        .map_err(|e| format!(
+            "Could not reach Proxmox at {host}: {e}\n\
+             Check that the host is reachable from this machine and port 8006 is open.\n\
+             If the server uses a self-signed certificate, the host runtime may need to allow it."
+        ))?;
     let resp: HttpResponse = serde_json::from_str(&resp_json)
         .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
     Ok((resp.status, resp.body))
