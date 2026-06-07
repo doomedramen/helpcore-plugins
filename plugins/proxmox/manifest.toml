@@ -8,21 +8,42 @@ allowed_hosts = ["*"]
 
 [[config_schema]]
 key = "host"
-label = "Proxmox Host"
+label = "Proxmox Host URL"
 type = "url"
 required = true
 hint = "e.g. https://proxmox.local:8006"
 
 [[config_schema]]
 key = "token_id"
-label = "API Token ID"
+label = "API Token ID (preferred)"
 type = "secret"
-required = true
-hint = "Format: user@realm!token_name, e.g. root@pam!monitoring"
+required = false
+hint = "Format: user@realm!token_name, e.g. root@pam!monitoring. Use with token_secret."
 
 [[config_schema]]
 key = "token_secret"
 label = "API Token Secret"
 type = "secret"
-required = true
-hint = "The secret/UUID shown when creating the API token"
+required = false
+hint = "The secret/UUID shown when creating the API token. Use with token_id."
+
+[[config_schema]]
+key = "username"
+label = "Username (alternative to API token)"
+type = "text"
+required = false
+hint = "Proxmox user, e.g. root"
+
+[[config_schema]]
+key = "password"
+label = "Password"
+type = "secret"
+required = false
+hint = "Proxmox user password"
+
+[[config_schema]]
+key = "realm"
+label = "Realm (optional)"
+type = "text"
+required = false
+hint = "Auth realm, default: pam. Change to pve for PVE users, or LDAP/AD realm name."
