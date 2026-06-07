@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "sun_times",
+      "description": "Get sunrise, sunset, solar noon, twilight times, and day length for any location on a given date, in local time. Useful for questions like 'what time is sunset in Lisbon tonight', 'how long is daylight in Reykjavik in December', or planning outdoor activities around daylight.",
+      "input_schema": {
+        "type": "object",
+        "required": ["location"],
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City name, optionally with country/region for disambiguation, e.g. 'Lisbon', 'Norfolk, UK', 'Kyoto, Japan'"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date to check, as YYYY-MM-DD (e.g. '2026-12-21'). Defaults to today if omitted. You can also pass 'today' or 'tomorrow'."
+          }
+        }
+      }
+    }
+  ]
+}

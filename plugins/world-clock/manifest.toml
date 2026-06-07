@@ -1,0 +1,9 @@
+id = "world-clock"
+name = "World Clock"
+version = "0.1.1"
+description = "Get the current date and time in any timezone, or convert a date/time between timezones — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "timeapi.io",
+]

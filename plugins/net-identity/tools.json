@@ -1,0 +1,17 @@
+{
+  "tools": [
+    {
+      "name": "net_whoami",
+      "description": "Look up the public IP address of the current connection (or a specific IP address if provided), along with its approximate location (city, region, country, coordinates, postal code), timezone, and network/ISP. Useful for answering questions like 'what is my IP address' or 'where am I connecting from'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ip": {
+            "type": "string",
+            "description": "Optional. A specific IPv4 or IPv6 address to look up instead of the current connection's address, e.g. '8.8.8.8'."
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "tools": [
+    {
+      "name": "currency_convert",
+      "description": "Convert an amount from one currency to one or more others using daily reference exchange rates from the European Central Bank. Also useful for simply checking the current exchange rate between two currencies (use amount=1).",
+      "input_schema": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "The amount to convert (default 1)"
+          },
+          "from": {
+            "type": "string",
+            "description": "Three-letter source currency code (ISO 4217), e.g. 'USD', 'GBP', 'EUR'"
+          },
+          "to": {
+            "type": "string",
+            "description": "One or more three-letter target currency codes, comma-separated, e.g. 'GBP' or 'EUR,JPY,AUD'"
+          }
+        }
+      }
+    }
+  ]
+}

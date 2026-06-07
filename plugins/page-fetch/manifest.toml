@@ -1,0 +1,7 @@
+id = "page-fetch"
+name = "Page Fetch"
+version = "0.1.1"
+description = "Fetch any web page and read it as clean plain text — strips HTML, scripts and styling so agents can read articles, docs and pages directly"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = ["*"]

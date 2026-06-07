@@ -1,0 +1,9 @@
+id = "dns-peek"
+name = "DNS Peek"
+version = "0.1.1"
+description = "Look up DNS records for any domain — A, AAAA, MX, TXT, NS, CNAME and more — via Cloudflare's DNS-over-HTTPS resolver, no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "cloudflare-dns.com",
+]

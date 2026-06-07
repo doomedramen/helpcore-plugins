@@ -1,0 +1,9 @@
+id = "wiki-brief"
+name = "Wiki Brief"
+version = "0.1.1"
+description = "Get concise, plain-text Wikipedia summaries for any topic, person, or place — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "en.wikipedia.org",
+]

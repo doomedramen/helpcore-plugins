@@ -1,0 +1,120 @@
+{
+  "tools": [
+    {
+      "name": "proxmox_list_nodes",
+      "description": "List all Proxmox nodes in the cluster with their health status (online/offline), CPU model, core count, and memory usage.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "proxmox_get_node_status",
+      "description": "Get detailed resource usage for a specific node: CPU usage (%), load average, memory (total/used), swap, uptime, and root disk usage.",
+      "input_schema": {
+        "type": "object",
+        "required": ["node"],
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Node name (hostname), e.g. 'pve' or 'proxmox-node-1'"
+          }
+        }
+      }
+    },
+    {
+      "name": "proxmox_list_guests",
+      "description": "List all VMs (QEMU) and LXC containers. Optionally filter by node, guest type ('qemu' or 'lxc'), or both.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Filter to a specific node (optional)"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["qemu", "lxc"],
+            "description": "Filter by guest type: 'qemu' for virtual machines, 'lxc' for containers (optional)"
+          }
+        }
+      }
+    },
+    {
+      "name": "proxmox_get_guest_status",
+      "description": "Get detailed runtime status of a specific VM or LXC container: CPU usage, memory usage, disk throughput, network traffic, uptime, and QEMU/LXC process info.",
+      "input_schema": {
+        "type": "object",
+        "required": ["node", "vmid"],
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Node name where the guest runs"
+          },
+          "vmid": {
+            "type": "integer",
+            "description": "VM or container ID (VMID), e.g. 100"
+          }
+        }
+      }
+    },
+    {
+      "name": "proxmox_get_guest_config",
+      "description": "Get the full configuration of a VM or LXC container: CPU cores, memory, disks, network interfaces, OS type, startup order, and other settings.",
+      "input_schema": {
+        "type": "object",
+        "required": ["node", "vmid"],
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Node name where the guest is defined"
+          },
+          "vmid": {
+            "type": "integer",
+            "description": "VM or container ID"
+          }
+        }
+      }
+    },
+    {
+      "name": "proxmox_get_cluster_resources",
+      "description": "Get an overview of all cluster resources — nodes, VMs, containers, and storage — with their status and resource usage in a single call. Optionally filter by resource type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["node", "storage", "qemu", "lxc", "vm"],
+            "description": "Filter by resource type (optional). 'vm' includes both qemu and lxc."
+          }
+        }
+      }
+    },
+    {
+      "name": "proxmox_get_storage",
+      "description": "Get storage pool details for a node or the whole cluster: pool name, type (lvm, zfs, dir, nfs, ceph, etc.), total space, used space, and availability.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Filter to a specific node (optional — omit for all nodes)"
+          }
+        }
+      }
+    },
+    {
+      "name": "proxmox_get_version",
+      "description": "Get the Proxmox VE version and repository info for one or all nodes.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Node name (optional — omit to get version from all nodes)"
+          }
+        }
+      }
+    }
+  ]
+}

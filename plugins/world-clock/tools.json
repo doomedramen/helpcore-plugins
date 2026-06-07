@@ -1,0 +1,39 @@
+{
+  "tools": [
+    {
+      "name": "clock_now",
+      "description": "Get the current date and time in a given timezone (or UTC if no timezone is given). Returns the local date, time, day of week, UTC offset, and whether daylight saving time is active. Use this for questions like 'what time is it in Tokyo' or 'what's today's date in New York'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone name, e.g. 'Europe/London', 'America/New_York', 'Asia/Tokyo', 'Australia/Sydney'. Omit for UTC."
+          }
+        }
+      }
+    },
+    {
+      "name": "clock_convert",
+      "description": "Convert a specific date and time from one timezone to another. Use this for questions like 'if it's 3pm in London, what time is that in Tokyo' or 'convert 2026-06-07 09:00 from New York to Sydney time'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["time", "from_timezone", "to_timezone"],
+        "properties": {
+          "time": {
+            "type": "string",
+            "description": "The date and time to convert, e.g. '2026-06-07 15:00' or '2026-06-07 15:00:00'. If no date is given, ask the user or use today's date."
+          },
+          "from_timezone": {
+            "type": "string",
+            "description": "IANA timezone the given time is in, e.g. 'Europe/London'"
+          },
+          "to_timezone": {
+            "type": "string",
+            "description": "IANA timezone to convert the time into, e.g. 'Asia/Tokyo'"
+          }
+        }
+      }
+    }
+  ]
+}

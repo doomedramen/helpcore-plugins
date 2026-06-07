@@ -647,26 +647,26 @@ fn parse_duration(s: &str) -> Result<u64, String> {
     let mut chars = s.chars().peekable();
 
     while chars.peek().is_some() {
-        while chars.peek().map_or(false, |c| c.is_whitespace() || *c == ',') {
+        while chars.peek().is_some_and(|c| c.is_whitespace() || *c == ',') {
             chars.next();
         }
         if chars.peek().is_none() { break; }
 
         let mut digits = String::new();
-        while chars.peek().map_or(false, |c| c.is_ascii_digit()) {
+        while chars.peek().is_some_and(|c| c.is_ascii_digit()) {
             digits.push(chars.next().unwrap());
         }
         if digits.is_empty() {
-            while chars.peek().map_or(false, |c| c.is_alphabetic()) { chars.next(); }
+            while chars.peek().is_some_and(|c| c.is_alphabetic()) { chars.next(); }
             continue;
         }
 
         let n: u64 = digits.parse().map_err(|_| format!("invalid number '{digits}'"))?;
 
-        while chars.peek().map_or(false, |c| c.is_whitespace()) { chars.next(); }
+        while chars.peek().is_some_and(|c| c.is_whitespace()) { chars.next(); }
 
         let mut unit = String::new();
-        while chars.peek().map_or(false, |c| c.is_alphabetic()) {
+        while chars.peek().is_some_and(|c| c.is_alphabetic()) {
             unit.push(chars.next().unwrap());
         }
 
@@ -739,8 +739,7 @@ fn get_history(input: &Value) -> Result<String, String> {
         .ok_or("entity_id is required")?;
     let hours_back = input.get("hours_back").and_then(Value::as_f64)
         .unwrap_or(24.0)
-        .max(0.5)
-        .min(168.0);
+        .clamp(0.5, 168.0);
 
     validate_url_path_segment(entity_id, "entity_id")?;
 
@@ -786,4 +785,246 @@ fn get_history(input: &Value) -> Result<String, String> {
     }
 
     Ok(result)
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── validate_url_path_segment ─────────────────────────────────────────────
+
+    #[test]
+    fn path_segment_valid() {
+        assert!(validate_url_path_segment("light.orb", "x").is_ok());
+        assert!(validate_url_path_segment("automation.goodnight_routine", "x").is_ok());
+        assert!(validate_url_path_segment("abc123", "x").is_ok());
+    }
+
+    #[test]
+    fn path_segment_rejects_slash() {
+        assert!(validate_url_path_segment("light/orb", "x").is_err());
+        assert!(validate_url_path_segment("../../etc/passwd", "x").is_err());
+    }
+
+    #[test]
+    fn path_segment_rejects_dotdot() {
+        assert!(validate_url_path_segment("a..b", "x").is_err());
+    }
+
+    #[test]
+    fn path_segment_rejects_empty() {
+        assert!(validate_url_path_segment("", "x").is_err());
+    }
+
+    #[test]
+    fn path_segment_rejects_non_ascii() {
+        assert!(validate_url_path_segment("light.café", "x").is_err());
+    }
+
+    // ── parse_duration ────────────────────────────────────────────────────────
+
+    #[test]
+    fn duration_unit_suffixes() {
+        assert_eq!(parse_duration("30m"),  Ok(1800));
+        assert_eq!(parse_duration("1h"),   Ok(3600));
+        assert_eq!(parse_duration("90s"),  Ok(90));
+        assert_eq!(parse_duration("1h30m"), Ok(5400));
+        assert_eq!(parse_duration("2h15m30s"), Ok(8130));
+    }
+
+    #[test]
+    fn duration_word_units() {
+        assert_eq!(parse_duration("30 minutes"), Ok(1800));
+        assert_eq!(parse_duration("2 hours"),    Ok(7200));
+        assert_eq!(parse_duration("45 seconds"), Ok(45));
+        assert_eq!(parse_duration("1 hour 30 minutes"), Ok(5400));
+    }
+
+    #[test]
+    fn duration_abbreviations() {
+        assert_eq!(parse_duration("30min"),  Ok(1800));
+        assert_eq!(parse_duration("2hr"),    Ok(7200));
+        assert_eq!(parse_duration("10sec"),  Ok(10));
+        assert_eq!(parse_duration("2hrs"),   Ok(7200));
+        assert_eq!(parse_duration("30mins"), Ok(1800));
+    }
+
+    #[test]
+    fn duration_bare_number_is_seconds() {
+        assert_eq!(parse_duration("60"),  Ok(60));
+        assert_eq!(parse_duration("120"), Ok(120));
+    }
+
+    #[test]
+    fn duration_case_insensitive() {
+        assert_eq!(parse_duration("30M"),       Ok(1800));
+        assert_eq!(parse_duration("1H"),        Ok(3600));
+        assert_eq!(parse_duration("1 HOUR"),    Ok(3600));
+        assert_eq!(parse_duration("30 MINUTES"), Ok(1800));
+    }
+
+    #[test]
+    fn duration_zero_is_error() {
+        assert!(parse_duration("0").is_err());
+        assert!(parse_duration("0m").is_err());
+    }
+
+    #[test]
+    fn duration_empty_is_error() {
+        assert!(parse_duration("").is_err());
+        assert!(parse_duration("   ").is_err());
+    }
+
+    #[test]
+    fn duration_unknown_unit_is_error() {
+        assert!(parse_duration("5d").is_err());
+        assert!(parse_duration("2w").is_err());
+    }
+
+    // ── format_duration ───────────────────────────────────────────────────────
+
+    #[test]
+    fn format_round_values() {
+        assert_eq!(format_duration(3600),  "1h");
+        assert_eq!(format_duration(1800),  "30m");
+        assert_eq!(format_duration(90),    "1m 30s");
+        assert_eq!(format_duration(45),    "45s");
+        assert_eq!(format_duration(5400),  "1h 30m");
+        assert_eq!(format_duration(8130),  "2h 15m 30s");
+    }
+
+    #[test]
+    fn format_parse_roundtrip() {
+        for secs in [30u64, 60, 90, 1800, 3600, 5400, 7261] {
+            let s = format_duration(secs);
+            assert_eq!(parse_duration(&s), Ok(secs), "roundtrip failed for {secs}s → {s:?}");
+        }
+    }
+
+    // ── resolve_service ───────────────────────────────────────────────────────
+
+    fn v_num(n: f64) -> Value { Value::from(n) }
+    fn v_str(s: &str) -> Value { Value::String(s.to_string()) }
+
+    #[test]
+    fn light_brightness() {
+        let (dom, svc, data) = resolve_service("light", "brightness", &v_num(50.0)).unwrap();
+        assert_eq!((dom, svc), ("light", "turn_on"));
+        assert_eq!(data["brightness_pct"], v_num(50.0));
+    }
+
+    #[test]
+    fn light_state_off() {
+        let (dom, svc, data) = resolve_service("light", "state", &v_str("off")).unwrap();
+        assert_eq!((dom, svc), ("light", "turn_off"));
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn light_state_on() {
+        let (dom, svc, _) = resolve_service("light", "state", &v_str("on")).unwrap();
+        assert_eq!((dom, svc), ("light", "turn_on"));
+    }
+
+    #[test]
+    fn light_color_aliases() {
+        for attr in ["rgb_color", "rgb", "color", "colour"] {
+            let (_, svc, data) = resolve_service("light", attr, &v_str("255,0,0")).unwrap();
+            assert_eq!(svc, "turn_on");
+            assert!(data.contains_key("rgb_color"), "attr={attr}");
+        }
+    }
+
+    #[test]
+    fn climate_temperature() {
+        let (dom, svc, data) = resolve_service("climate", "temperature", &v_num(21.0)).unwrap();
+        assert_eq!((dom, svc), ("climate", "set_temperature"));
+        assert_eq!(data["temperature"], v_num(21.0));
+    }
+
+    #[test]
+    fn climate_mode_aliases() {
+        for attr in ["mode", "hvac_mode"] {
+            let (_, svc, data) = resolve_service("climate", attr, &v_str("cool")).unwrap();
+            assert_eq!(svc, "set_hvac_mode");
+            assert_eq!(data["hvac_mode"], v_str("cool"), "attr={attr}");
+        }
+    }
+
+    #[test]
+    fn cover_position() {
+        let (dom, svc, data) = resolve_service("cover", "position", &v_num(50.0)).unwrap();
+        assert_eq!((dom, svc), ("cover", "set_cover_position"));
+        assert_eq!(data["position"], v_num(50.0));
+    }
+
+    #[test]
+    fn cover_state_close() {
+        let (_, svc, _) = resolve_service("cover", "state", &v_str("close")).unwrap();
+        assert_eq!(svc, "close_cover");
+        let (_, svc, _) = resolve_service("cover", "state", &v_str("closed")).unwrap();
+        assert_eq!(svc, "close_cover");
+    }
+
+    #[test]
+    fn fan_speed_aliases() {
+        for attr in ["percentage", "speed"] {
+            let (_, svc, data) = resolve_service("fan", attr, &v_num(75.0)).unwrap();
+            assert_eq!(svc, "set_percentage");
+            assert_eq!(data["percentage"], v_num(75.0), "attr={attr}");
+        }
+    }
+
+    #[test]
+    fn media_player_volume_normalises_over_one() {
+        let (_, svc, data) = resolve_service("media_player", "volume", &v_num(50.0)).unwrap();
+        assert_eq!(svc, "volume_set");
+        let level = data["volume_level"].as_f64().unwrap();
+        assert!((level - 0.5).abs() < 1e-9, "expected 0.5, got {level}");
+    }
+
+    #[test]
+    fn media_player_volume_passthrough_under_one() {
+        let (_, _, data) = resolve_service("media_player", "volume", &v_num(0.8)).unwrap();
+        let level = data["volume_level"].as_f64().unwrap();
+        assert!((level - 0.8).abs() < 1e-9, "expected 0.8, got {level}");
+    }
+
+    #[test]
+    fn input_number_and_number() {
+        for domain in ["input_number", "number"] {
+            let (_, svc, data) = resolve_service(domain, "value", &v_num(42.0)).unwrap();
+            assert_eq!(svc, "set_value");
+            assert_eq!(data["value"], v_num(42.0), "domain={domain}");
+        }
+    }
+
+    #[test]
+    fn input_boolean_off_variants() {
+        for val in [v_str("off"), v_str("false"), Value::Bool(false)] {
+            let (_, svc, _) = resolve_service("input_boolean", "state", &val).unwrap();
+            assert_eq!(svc, "turn_off", "val={val}");
+        }
+    }
+
+    #[test]
+    fn input_boolean_on_variants() {
+        for val in [v_str("on"), v_str("true"), Value::Bool(true)] {
+            let (_, svc, _) = resolve_service("input_boolean", "state", &val).unwrap();
+            assert_eq!(svc, "turn_on", "val={val}");
+        }
+    }
+
+    #[test]
+    fn unknown_attribute_is_error() {
+        assert!(resolve_service("light", "sparkle", &v_num(1.0)).is_err());
+        assert!(resolve_service("climate", "colour", &v_str("red")).is_err());
+    }
+
+    #[test]
+    fn unsupported_domain_is_error() {
+        assert!(resolve_service("unknown_domain", "state", &v_str("on")).is_err());
+    }
 }

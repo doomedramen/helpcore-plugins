@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "dns_lookup",
+      "description": "Look up DNS records for a domain name. Useful for questions like 'what's the IP address of example.com', 'who handles email for this domain', 'what is the SPF/DKIM record', or general domain troubleshooting. Returns the matching records with their TTLs.",
+      "input_schema": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "The domain name to look up, e.g. 'example.com', 'mail.google.com'"
+          },
+          "type": {
+            "type": "string",
+            "description": "DNS record type to query (default 'A'). Common values: A (IPv4 address), AAAA (IPv6 address), MX (mail servers), TXT (text records — SPF/DKIM/verification), NS (name servers), CNAME (alias), SOA (zone authority), CAA (certificate authority)."
+          }
+        }
+      }
+    }
+  ]
+}

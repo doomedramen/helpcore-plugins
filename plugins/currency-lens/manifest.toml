@@ -1,0 +1,9 @@
+id = "currency-lens"
+name = "Currency Lens"
+version = "0.1.1"
+description = "Convert between currencies and check live exchange rates, backed by European Central Bank reference data — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "api.frankfurter.dev",
+]

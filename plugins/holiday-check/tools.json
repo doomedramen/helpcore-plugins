@@ -1,0 +1,36 @@
+{
+  "tools": [
+    {
+      "name": "holiday_list",
+      "description": "List all public holidays for a given country and year. Use this for questions like 'what public holidays does France have in 2026' or 'is there a bank holiday in the UK this month'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["country", "year"],
+        "properties": {
+          "country": {
+            "type": "string",
+            "description": "Two-letter ISO 3166-1 country code, e.g. 'US', 'GB', 'DE', 'JP', 'AU'"
+          },
+          "year": {
+            "type": "number",
+            "description": "The calendar year to list holidays for, e.g. 2026"
+          }
+        }
+      }
+    },
+    {
+      "name": "holiday_next",
+      "description": "List the next upcoming public holidays for a given country, starting from today. Use this for questions like 'when is the next public holiday in Germany' or 'what's the next bank holiday'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["country"],
+        "properties": {
+          "country": {
+            "type": "string",
+            "description": "Two-letter ISO 3166-1 country code, e.g. 'US', 'GB', 'DE', 'JP', 'AU'"
+          }
+        }
+      }
+    }
+  ]
+}

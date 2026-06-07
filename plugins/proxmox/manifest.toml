@@ -1,0 +1,28 @@
+id = "proxmox"
+name = "Proxmox Insights"
+version = "0.1.1"
+description = "Monitor Proxmox VE hosts, VMs, and LXC containers — CPU, memory, storage, hardware, and cluster health"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = ["*"]
+
+[[config_schema]]
+key = "host"
+label = "Proxmox Host"
+type = "url"
+required = true
+hint = "e.g. https://proxmox.local:8006"
+
+[[config_schema]]
+key = "token_id"
+label = "API Token ID"
+type = "secret"
+required = true
+hint = "Format: user@realm!token_name, e.g. root@pam!monitoring"
+
+[[config_schema]]
+key = "token_secret"
+label = "API Token Secret"
+type = "secret"
+required = true
+hint = "The secret/UUID shown when creating the API token"

@@ -1,0 +1,18 @@
+{
+  "tools": [
+    {
+      "name": "wiki_summary",
+      "description": "Get a concise plain-text summary of a Wikipedia article — useful for quickly looking up who or what something is (people, places, events, concepts, organisations, etc). Returns the article's title, short description, and opening summary paragraph. If the exact title isn't found, automatically searches for the closest matching article.",
+      "input_schema": {
+        "type": "object",
+        "required": ["topic"],
+        "properties": {
+          "topic": {
+            "type": "string",
+            "description": "The subject to look up, e.g. 'Ada Lovelace', 'Mount Kilimanjaro', 'Photosynthesis'. Plain natural-language names work fine — no need to format as a Wikipedia title."
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "tools": [
+    {
+      "name": "page_fetch",
+      "description": "Fetch a web page by URL and return its content as clean, readable plain text — with HTML tags, scripts and styling stripped out. Use this to read articles, documentation pages, blog posts, or any other web page the user references or asks about. Not suitable for pages that require login or heavy JavaScript rendering to show content.",
+      "input_schema": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The full URL to fetch, including scheme, e.g. 'https://example.com/article'"
+          }
+        }
+      }
+    }
+  ]
+}

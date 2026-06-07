@@ -1,8 +1,8 @@
 [workspace]
 
 [package]
-name = "homeassistant"
-version = "0.3.5"
+name = "page-fetch"
+version = "0.1.1"
 edition = "2021"
 
 [lib]

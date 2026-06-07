@@ -1,0 +1,9 @@
+id = "net-identity"
+name = "Net Identity"
+version = "0.1.1"
+description = "Look up your public IP address, ISP, and approximate location — or any other IP address — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "ipinfo.io",
+]

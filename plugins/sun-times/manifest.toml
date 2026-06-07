@@ -1,0 +1,10 @@
+id = "sun-times"
+name = "Sun Times"
+version = "0.1.1"
+description = "Sunrise, sunset, solar noon, twilight and day length for any location and date — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "geocoding-api.open-meteo.com",
+    "api.sunrise-sunset.org",
+]
