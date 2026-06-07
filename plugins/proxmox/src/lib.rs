@@ -49,7 +49,7 @@ export!(Proxmox);
 
 enum AuthMethod {
     Token { header: String },
-    Password { username: String, password: String, realm: String },
+    Password { username: String, password: String },
 }
 
 struct Config {
@@ -80,16 +80,15 @@ fn load_config() -> Result<Config, String> {
         host::config_read("username"),
         host::config_read("password"),
     ) {
-        let realm = host::config_read("realm").unwrap_or_else(|_| "pam".to_string());
         return Ok(Config {
             host,
-            auth: AuthMethod::Password { username, password, realm },
+            auth: AuthMethod::Password { username, password },
         });
     }
 
     Err("No authentication configured. Set either:\n\
          • API token (token_id + token_secret), or\n\
-         • Username + password (+ optional realm)\n\
+         • Username + password\n\
          in the plugin settings.".to_string())
 }
 
@@ -111,6 +110,21 @@ fn url_encode(s: &str) -> String {
     for byte in s.bytes() {
         match byte {
             b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'-' | b'_' | b'.' | b'~' => {
+                result.push(byte as char);
+            }
+            b' ' => result.push_str("%20"),
+            _ => result.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    result
+}
+
+/// Like url_encode but preserves the '@' character (Proxmox expects literal @ in usernames).
+fn url_encode_preserve_at(s: &str) -> String {
+    let mut result = String::new();
+    for byte in s.bytes() {
+        match byte {
+            b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'-' | b'_' | b'.' | b'~' | b'@' => {
                 result.push(byte as char);
             }
             b' ' => result.push_str("%20"),
@@ -163,11 +177,11 @@ fn http_execute(
 }
 
 /// Obtain a fresh auth ticket from Proxmox (username + password).
-fn get_ticket(host: &str, username: &str, password: &str, realm: &str) -> Result<String, String> {
+/// Username should include the realm, e.g. "root@pam".
+fn get_ticket(host: &str, username: &str, password: &str) -> Result<String, String> {
     let body = format!(
-        "username={}%40{}&password={}",
-        url_encode(username),
-        url_encode(realm),
+        "username={}&password={}",
+        url_encode_preserve_at(username),
         url_encode(password),
     );
 
@@ -202,8 +216,8 @@ fn pve_auth_headers(config: &Config) -> Result<serde_json::Map<String, Value>, S
         AuthMethod::Token { header } => {
             headers.insert("Authorization".into(), Value::String(header.clone()));
         }
-        AuthMethod::Password { username, password, realm } => {
-            let ticket = get_ticket(&config.host, username, password, realm)?;
+        AuthMethod::Password { username, password } => {
+            let ticket = get_ticket(&config.host, username, password)?;
             headers.insert("Cookie".into(), Value::String(format!("PVEAuthCookie={ticket}")));
         }
     }
@@ -1190,6 +1204,14 @@ mod tests {
         assert_eq!(url_encode("test/path"), "test%2Fpath");
         assert_eq!(url_encode("colón"), "col%C3%B3n");
         assert_eq!(url_encode("P@ssw0rd!"), "P%40ssw0rd%21");
+    }
+
+    #[test]
+    fn url_encode_preserve_at_values() {
+        assert_eq!(url_encode_preserve_at("root@pam"), "root@pam");
+        assert_eq!(url_encode_preserve_at("user@realm"), "user@realm");
+        assert_eq!(url_encode_preserve_at("name with spaces@pam"), "name%20with%20spaces@pam");
+        assert_eq!(url_encode_preserve_at(""), "");
     }
 
     #[test]

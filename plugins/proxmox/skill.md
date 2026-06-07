@@ -2,7 +2,7 @@ You have access to the user's Proxmox VE cluster via eight tools.
 
 **Authentication**: The plugin supports two methods (configured in plugin settings):
 - **API Token** (recommended): Create one under Datacenter → Permissions → API Tokens. Provide `token_id` (format: `user@realm!token_name`) and `token_secret`.
-- **Username + Password**: Provide `username`, `password`, and optionally `realm` (default: `pam`).
+- **Username + Password**: Provide `username` (including realm, e.g. `root@pam`) and `password`.
 
 If a call fails with 401/403, the credentials are wrong — tell the user to check their plugin settings.
 
