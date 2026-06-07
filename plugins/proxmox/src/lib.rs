@@ -1180,5 +1180,98 @@ mod tests {
         assert_eq!(fmt_percent(0.046), "4.6%");
         assert_eq!(fmt_percent(0.755), "75.5%");
         assert_eq!(fmt_percent(1.0), "100.0%");
+        assert_eq!(fmt_percent(0.001), "0.1%");
+    }
+
+    #[test]
+    fn url_encode_edge_cases() {
+        assert_eq!(url_encode(""), "");
+        assert_eq!(url_encode("abc123"), "abc123");
+        assert_eq!(url_encode("test/path"), "test%2Fpath");
+        assert_eq!(url_encode("colón"), "col%C3%B3n");
+        assert_eq!(url_encode("P@ssw0rd!"), "P%40ssw0rd%21");
+    }
+
+    #[test]
+    fn fmt_bytes_edge_cases() {
+        assert_eq!(fmt_bytes(1), "1 B");
+        assert_eq!(fmt_bytes(512), "512 B");
+        assert_eq!(fmt_bytes(2_048), "2.0 KB");
+        assert_eq!(fmt_bytes(5_368_709_120), "5.0 GB");
+        assert_eq!(fmt_bytes(17_592_186_044_416), "16.0 TB");
+    }
+
+    #[test]
+    fn fmt_uptime_edge_cases() {
+        assert_eq!(fmt_uptime(0), "0s");
+        assert_eq!(fmt_uptime(1), "1s");
+        assert_eq!(fmt_uptime(59), "59s");
+        assert_eq!(fmt_uptime(61), "1m 1s");
+        assert_eq!(fmt_uptime(3599), "59m 59s");
+        assert_eq!(fmt_uptime(604800), "7d 0h");
+        assert_eq!(fmt_uptime(1393559), "16d 3h");
+    }
+
+    #[test]
+    fn format_config_value_memory_keys() {
+        assert_eq!(
+            format_config_value("memory", &Value::from(2048)),
+            "2.0 GB"
+        );
+        assert_eq!(
+            format_config_value("balloon", &Value::from(1024)),
+            "1.0 GB"
+        );
+        assert_eq!(
+            format_config_value("swap", &Value::from(512)),
+            "512.0 MB"
+        );
+        // Non-memory keys stay as raw numbers
+        assert_eq!(
+            format_config_value("cores", &Value::from(4)),
+            "4"
+        );
+    }
+
+    #[test]
+    fn format_config_value_strings() {
+        assert_eq!(
+            format_config_value("hostname", &Value::String("my-ct".into())),
+            "my-ct"
+        );
+        assert_eq!(
+            format_config_value("ostype", &Value::String("debian".into())),
+            "debian"
+        );
+    }
+
+    #[test]
+    fn format_config_value_lxc_array() {
+        let lxc_val = serde_json::json!([
+            ["lxc.cgroup2.devices.allow", "c 226:* rwm"],
+            ["lxc.mount.entry", "/dev/dri/renderD129 /dev/dri/renderD129 none bind,optional,create=file"]
+        ]);
+        let result = format_config_value("lxc", &lxc_val);
+        assert!(result.contains("lxc.cgroup2.devices.allow = c 226:* rwm"));
+        assert!(result.contains("lxc.mount.entry"));
+        assert!(result.contains("renderD129"));
+        // Leading newline before first entry; 2 content lines + empty leading = 3
+        assert_eq!(result.lines().count(), 3);
+    }
+
+    #[test]
+    fn format_config_value_non_lxc_array() {
+        // A non-lxc array should be serialized as JSON
+        let arr_val = serde_json::json!(["a", "b", "c"]);
+        let result = format_config_value("tags", &arr_val);
+        assert_eq!(result, r#"["a","b","c"]"#);
+    }
+
+    #[test]
+    fn format_config_value_features() {
+        assert_eq!(
+            format_config_value("features", &Value::String("keyctl=1,nesting=1".into())),
+            "keyctl=1,nesting=1"
+        );
     }
 }

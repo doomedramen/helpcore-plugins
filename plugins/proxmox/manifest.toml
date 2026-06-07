@@ -1,6 +1,6 @@
 id = "proxmox"
 name = "Proxmox Insights"
-version = "0.1.1"
+version = "0.1.2"
 description = "Monitor Proxmox VE hosts, VMs, and LXC containers — CPU, memory, storage, hardware, and cluster health"
 tier = "wasm"
 permissions = ["outbound_http"]
