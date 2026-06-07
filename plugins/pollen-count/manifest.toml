@@ -1,0 +1,10 @@
+id = "pollen-count"
+name = "Pollen Count"
+version = "0.1.1"
+description = "Pollen forecasts (tree, grass, and weed) for locations in Europe — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "geocoding-api.open-meteo.com",
+    "air-quality-api.open-meteo.com",
+]

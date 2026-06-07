@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "pollen_get",
+      "description": "Get current and forecast pollen levels (alder, birch, grass, mugwort, olive, ragweed) for a location, with Low/Moderate/High/Very High ratings. Pollen forecasts are provided by CAMS and currently only cover Europe. Useful for questions like 'is grass pollen high in Munich today' or 'what's the hay fever forecast for Madrid this week'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["location"],
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City name, optionally with country or region for disambiguation (e.g. 'Norfolk, UK', 'Munich', 'Madrid, Spain')"
+          },
+          "days": {
+            "type": "number",
+            "description": "Number of forecast days to include, including today (1-4, default 4 — the maximum CAMS pollen forecast range)"
+          }
+        }
+      }
+    }
+  ]
+}
