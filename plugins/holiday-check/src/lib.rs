@@ -168,18 +168,29 @@ fn holiday_next(input: &Value) -> Result<String, String> {
         .ok_or("country is required, e.g. 'GB'")?;
     let country = normalize_country(country_raw)?;
 
+    let count = input
+        .get("count")
+        .and_then(Value::as_u64)
+        .unwrap_or(10);
+
     let url = format!("https://date.nager.at/api/v3/NextPublicHolidays/{country}");
     let (status, body) = http_get(&url)?;
     if status >= 400 {
         return Err(unknown_country_error(&country, status, &body));
     }
 
-    let holidays: Vec<Holiday> =
+    let mut holidays: Vec<Holiday> =
         serde_json::from_str(&body).map_err(|e| format!("failed to parse holiday response: {e}"))?;
 
-    Ok(render_holidays(
-        &holidays,
-        &format!("Upcoming public holidays in {country}:"),
-        &format!("No upcoming public holidays found for {country}."),
-    ))
+    let total = holidays.len();
+    holidays.truncate(count as usize);
+
+    let header = if count as usize >= total {
+        format!("Upcoming public holidays in {country}:")
+    } else {
+        format!("Next {count} of {total} upcoming public holidays in {country}:")
+    };
+    let empty = format!("No upcoming public holidays found for {country}.");
+
+    Ok(render_holidays(&holidays, &header, &empty))
 }

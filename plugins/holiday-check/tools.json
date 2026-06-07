@@ -28,6 +28,10 @@
           "country": {
             "type": "string",
             "description": "Two-letter ISO 3166-1 country code, e.g. 'US', 'GB', 'DE', 'JP', 'AU'"
+          },
+          "count": {
+            "type": "number",
+            "description": "Maximum number of upcoming holidays to return (default: 10). Use a smaller number to avoid long lists, e.g. 5."
           }
         }
       }

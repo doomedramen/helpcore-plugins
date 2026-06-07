@@ -340,7 +340,9 @@ fn page_fetch(input: &Value) -> Result<String, String> {
         return Err(format!("Fetching {url} failed with HTTP {status}."));
     }
     if body.trim().is_empty() {
-        return Ok(format!("The page at {url} returned no content."));
+        return Ok(format!(
+            "The page at {url} returned no content (HTTP {status})."
+        ));
     }
 
     let (title, mut text) = html_to_text(&body);
@@ -353,7 +355,7 @@ fn page_fetch(input: &Value) -> Result<String, String> {
 
     if text.trim().is_empty() {
         return Ok(format!(
-            "Fetched {url}{}, but no readable text content was found — the page may rely on JavaScript to render its content.",
+            "Fetched {url} (HTTP {status}){}, but no readable text content was found — the page may rely on JavaScript to render its content.",
             title.as_ref().map(|t| format!(" ('{t}')")).unwrap_or_default()
         ));
     }

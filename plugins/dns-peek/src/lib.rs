@@ -129,6 +129,19 @@ fn record_type_name(code: u16) -> String {
     }
 }
 
+fn fmt_ttl(secs: u32) -> String {
+    let d = secs / 86400;
+    let h = (secs % 86400) / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    let mut parts = Vec::new();
+    if d > 0 { parts.push(format!("{d}d")); }
+    if h > 0 { parts.push(format!("{h}h")); }
+    if m > 0 { parts.push(format!("{m}m")); }
+    if s > 0 || parts.is_empty() { parts.push(format!("{s}s")); }
+    parts.join(" ")
+}
+
 fn rcode_meaning(status: u16) -> Option<&'static str> {
     match status {
         0 => None, // NOERROR — nothing to explain
@@ -209,10 +222,10 @@ fn dns_lookup(input: &Value) -> Result<String, String> {
     out.push_str(&format!("{record_type} records for {domain}:"));
     for rec in &doh.answer {
         out.push_str(&format!(
-            "\n  {} (type {}, TTL {}s)",
+            "\n  {} (type {}, TTL {})",
             rec.data.trim(),
             record_type_name(rec.rtype),
-            rec.ttl
+            fmt_ttl(rec.ttl),
         ));
     }
     Ok(out)

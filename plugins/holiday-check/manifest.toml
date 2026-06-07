@@ -1,6 +1,6 @@
 id = "holiday-check"
 name = "Holiday Check"
-version = "0.1.1"
+version = "0.1.2"
 description = "Look up public holidays for any country — full-year listings or what's coming up next — no API key required"
 tier = "wasm"
 permissions = ["outbound_http"]
