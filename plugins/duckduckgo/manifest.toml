@@ -1,0 +1,7 @@
+id = "duckduckgo"
+name = "DuckDuckGo Search"
+version = "0.1.1"
+description = "Search the web using DuckDuckGo — returns ranked results with titles, URLs, and snippets. No API key needed."
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = ["html.duckduckgo.com"]
