@@ -314,27 +314,38 @@ fn locate_attr_value(html: &str, lower: &str, tag_start: usize, tag_end: usize, 
     let lower_search = ascii_lower(&search);
     let tag_lower = &lower[tag_start..tag_end];
 
-    if let Some(attr_pos) = tag_lower.find(&lower_search) {
-        let abs_pos = tag_start + attr_pos + search.len();
-        let rest = &html[abs_pos..tag_end];
-        let trimmed = rest.trim_start();
-        let offset = rest.len() - trimmed.len();
+    // Find `attr=` at an attribute-name boundary (preceded by whitespace) so we
+    // don't match a longer attribute that happens to end in the same name, e.g.
+    // `data-href=` or `xlink:href=` when looking for `href=`.
+    let mut search_from = 0;
+    let attr_pos = loop {
+        let rel = tag_lower[search_from..].find(&lower_search)?;
+        let pos = search_from + rel;
+        if matches!(tag_lower[..pos].chars().last(), Some(c) if c.is_whitespace()) {
+            break pos;
+        }
+        search_from = pos + 1;
+    };
 
-        let delim = trimmed.as_bytes().first().copied();
-        match delim {
-            Some(b'"') | Some(b'\'') => {
-                let d = delim.unwrap() as char;
-                let inner = &trimmed[1..];
-                if let Some(end) = inner.find(d) {
-                    return Some((abs_pos + offset + 1, abs_pos + offset + 1 + end));
-                }
+    let abs_pos = tag_start + attr_pos + search.len();
+    let rest = &html[abs_pos..tag_end];
+    let trimmed = rest.trim_start();
+    let offset = rest.len() - trimmed.len();
+
+    let delim = trimmed.as_bytes().first().copied();
+    match delim {
+        Some(b'"') | Some(b'\'') => {
+            let d = delim.unwrap() as char;
+            let inner = &trimmed[1..];
+            if let Some(end) = inner.find(d) {
+                return Some((abs_pos + offset + 1, abs_pos + offset + 1 + end));
             }
-            _ => {
-                let end_pos = trimmed.find(|c: char| c.is_whitespace() || c == '>').unwrap_or(trimmed.len());
-                let val = trimmed[..end_pos].trim_end();
-                if !val.is_empty() {
-                    return Some((abs_pos + offset, abs_pos + offset + val.len()));
-                }
+        }
+        _ => {
+            let end_pos = trimmed.find(|c: char| c.is_whitespace() || c == '>').unwrap_or(trimmed.len());
+            let val = trimmed[..end_pos].trim_end();
+            if !val.is_empty() {
+                return Some((abs_pos + offset, abs_pos + offset + val.len()));
             }
         }
     }
@@ -456,16 +467,15 @@ fn duckduckgo_search(input: &Value) -> Result<String, String> {
         return Err(format!("DuckDuckGo search failed with HTTP {status}."));
     }
 
-    if is_challenge_page(&body) {
-        return Err(
-            "DuckDuckGo returned a verification challenge page — the search could not be completed. Try again later or with a different query."
-                .to_string(),
-        );
-    }
-
     let results = parse_results(&body, max_results);
 
     if results.is_empty() {
+        if is_challenge_page(&body) {
+            return Err(
+                "DuckDuckGo returned a verification challenge page instead of results — it may be rate-limiting or blocking automated requests. Wait a moment and try again, or rephrase the query."
+                    .to_string(),
+            );
+        }
         return Ok(format!("No results found for \"{query}\"."));
     }
 
@@ -640,7 +650,20 @@ fn extract_snippet(html: &str, lower: &str, block_start: usize, block_end: usize
 fn find_closing_tag(_html: &str, lower: &str, tag: &str, start: usize, limit: usize) -> Option<usize> {
     let search_lower = ascii_lower(&format!("</{}", tag));
     let remaining = &lower[start..limit];
-    remaining.find(&search_lower).map(|p| start + p)
+
+    // `</a` also matches inside `</abbr>`, `</article>`, etc., so require the
+    // match to be followed by `>` or whitespace to confirm it closes `tag`.
+    let mut search_from = 0;
+    loop {
+        let rel = remaining[search_from..].find(&search_lower)?;
+        let pos = search_from + rel;
+        let after = &remaining[pos + search_lower.len()..];
+        match after.chars().next() {
+            None | Some('>') => return Some(start + pos),
+            Some(c) if c.is_whitespace() => return Some(start + pos),
+            _ => search_from = pos + 1,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -989,6 +1012,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_results_title_with_abbr_tag_not_mistaken_for_closing_a() {
+        let html = r#"<div class="result results_links results_links_deep web-result">
+    <div class="links_main links_deep result__body">
+        <h2 class="result__title">
+            <a class="result__a" href="https://example.com">Guide to <abbr>HTML</abbr> and CSS</a>
+        </h2>
+        <a class="result__snippet">Snippet</a>
+    </div>
+</div>"#;
+        let results = parse_results(html, 5);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title, "Guide to HTML and CSS");
+    }
+
+    #[test]
     fn parse_results_nested_markup_in_snippet() {
         let html = r#"<div class="result results_links results_links_deep web-result">
     <div class="links_main links_deep result__body">
@@ -1177,6 +1215,29 @@ mod tests {
         let lower = ascii_lower(tag);
         let val = locate_attr_value(tag, &lower, 0, tag.len(), "href");
         assert!(val.is_none());
+    }
+
+    #[test]
+    fn locate_attr_value_skips_attr_with_matching_suffix() {
+        let tag = "<a data-href=\"wrong\" class=\"result__a\" href=\"https://example.com\">";
+        let lower = ascii_lower(tag);
+        let val = locate_attr_value(tag, &lower, 0, tag.len(), "href");
+        assert!(val.is_some());
+        let (start, end) = val.unwrap();
+        assert_eq!(&tag[start..end], "https://example.com");
+    }
+
+    #[test]
+    fn find_closing_tag_skips_similarly_named_tags() {
+        let html = "<a>Some <abbr>text</abbr> and <article>more</article> here</a> tail";
+        let lower = ascii_lower(html);
+        let start = html.find('>').unwrap() + 1;
+        let end = find_closing_tag(html, &lower, "a", start, html.len());
+        assert!(end.is_some());
+        assert_eq!(
+            &html[start..end.unwrap()],
+            "Some <abbr>text</abbr> and <article>more</article> here"
+        );
     }
 
     #[test]
