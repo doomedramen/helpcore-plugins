@@ -2,23 +2,23 @@
   "tools": [
     {
       "name": "meal_search",
-      "description": "Search for meals/recipes by name. Returns matching meals with their category, area (cuisine), thumbnail, and a list of ingredients. Use for questions like 'find me a chicken tikka masala recipe' or 'how do I make lasagna'. Also use for browsing meal categories or getting a random meal suggestion.",
+      "description": "Search for meals/recipes by name. Returns matching meals with their category, area (cuisine), thumbnail, and a list of ingredients. Automatically falls back to shorter queries for multi-word searches, then ingredient search. Use for questions like 'find me a chicken tikka masala recipe' or 'how do I make lasagna'. Also use for browsing meal categories or getting a random meal suggestion. TIP: use short, simple keywords (e.g. 'steak' not 'steak peppercorn sauce with sides').",
       "input_schema": {
         "type": "object",
         "required": ["query"],
         "properties": {
-          "query": { "type": "string", "description": "Meal name to search for, e.g. 'chicken tikka', 'lasagna', 'pad thai'. Use 'random' for a random meal suggestion." }
+          "query": { "type": "string", "description": "Meal name to search for, e.g. 'chicken tikka', 'lasagna', 'pad thai'. Use short keywords for best results. Use 'random' for a random meal suggestion." }
         }
       }
     },
     {
       "name": "meal_by_ingredient",
-      "description": "Find meals that can be made with a specific main ingredient. Use for questions like 'what can I make with chicken' or 'I have salmon, what recipes can I cook'.",
+      "description": "Find meals that can be made with a specific main ingredient. Automatically falls back to name search if ingredient filter returns nothing. Use for questions like 'what can I make with chicken' or 'I have salmon, what recipes can I cook'. Note: TheMealDB's ingredient index is limited — some common terms (e.g. 'steak') aren't indexed as ingredients even though they appear in meal names.",
       "input_schema": {
         "type": "object",
         "required": ["ingredient"],
         "properties": {
-          "ingredient": { "type": "string", "description": "A main ingredient to search by, e.g. 'chicken_breast', 'salmon', 'pasta', 'rice'" }
+          "ingredient": { "type": "string", "description": "A main ingredient to search by, e.g. 'chicken_breast', 'salmon', 'pasta', 'rice', 'beef'" }
         }
       }
     },

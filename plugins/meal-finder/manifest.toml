@@ -1,6 +1,6 @@
 id = "meal-finder"
 name = "Meal Finder"
-version = "0.1.2"
+version = "0.1.4"
 description = "Search for recipes by name, ingredient, or category — get full instructions and ingredient lists — no API key required"
 tier = "wasm"
 permissions = ["outbound_http"]

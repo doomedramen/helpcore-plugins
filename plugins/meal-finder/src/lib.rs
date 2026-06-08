@@ -73,28 +73,74 @@ fn meal_search(input: &Value) -> Result<String, String> {
         return Err("No random meal found.".to_string());
     }
 
-    let url = format!("https://www.themealdb.com/api/json/v1/1/search.php?s={}", query.replace(' ', "%20"));
-    let body = http_get(&url)?;
-    let data: Value = serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
-    let meals = data["meals"].as_array().ok_or_else(|| format!("No meals found for '{}'. Try a different search term.", query))?;
-
-    if meals.len() == 1 {
-        return Ok(format_meal(&meals[0]));
+    // Try full query, then progressively shorter prefixes for multi-word queries
+    let words: Vec<&str> = query.split_whitespace().collect();
+    let mut queries_to_try: Vec<String> = vec![query.to_string()];
+    for i in (1..words.len()).rev() {
+        queries_to_try.push(words[..i].join(" "));
     }
 
-    let mut out = format!("Found {} meals for '{}':\n\n", meals.len(), query);
-    for meal in meals.iter().take(10) {
-        let id = meal["idMeal"].as_str().unwrap_or("");
-        let name = meal["strMeal"].as_str().unwrap_or("");
-        let cat = meal["strCategory"].as_str().unwrap_or("");
-        let area = meal["strArea"].as_str().unwrap_or("");
-        let thumb = meal["strMealThumb"].as_str().unwrap_or("");
-        out.push_str(&format!("**{name}** [{id}]\n  Category: {cat} | Cuisine: {area}\n  Image: {thumb}\n\n"));
+    for attempt_query in &queries_to_try {
+        let url = format!("https://www.themealdb.com/api/json/v1/1/search.php?s={}", attempt_query.replace(' ', "%20"));
+        let body = match http_get(&url) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let data: Value = match serde_json::from_str(&body) {
+            Ok(d) => d,
+            Err(_) => continue,
+        };
+        if let Some(meals) = data["meals"].as_array() {
+            if meals.is_empty() { continue; }
+
+            let matched_query = if attempt_query.as_str() == query { query } else { attempt_query.as_str() };
+
+            if meals.len() == 1 {
+                return Ok(format!("Search for '{}' matched:\n\n{}", query, format_meal(&meals[0])));
+            }
+
+            let mut out = format!("Found {} meals for '{}'", meals.len(), matched_query);
+            if matched_query != query {
+                out.push_str(&format!(" (simplified from '{}')", query));
+            }
+            out.push_str(":\n\n");
+            for meal in meals.iter().take(10) {
+                let id = meal["idMeal"].as_str().unwrap_or("");
+                let name = meal["strMeal"].as_str().unwrap_or("");
+                let cat = meal["strCategory"].as_str().unwrap_or("");
+                let area = meal["strArea"].as_str().unwrap_or("");
+                let thumb = meal["strMealThumb"].as_str().unwrap_or("");
+                out.push_str(&format!("**{name}** [{id}]\n  Category: {cat} | Cuisine: {area}\n  Image: {thumb}\n\n"));
+            }
+            if meals.len() > 10 {
+                out.push_str(&format!("... and {} more. Refine your search for fewer results.\n", meals.len() - 10));
+            }
+            return Ok(out);
+        }
     }
-    if meals.len() > 10 {
-        out.push_str(&format!("... and {} more. Refine your search for fewer results.\n", meals.len() - 10));
+
+    // All name searches failed — try ingredient search as last resort for the first word
+    if words.len() >= 1 {
+        let first_word = words[0];
+        if let Ok(body) = http_get(&format!("https://www.themealdb.com/api/json/v1/1/filter.php?i={}", first_word)) {
+            if let Ok(data) = serde_json::from_str::<Value>(&body) {
+                if let Some(meals) = data["meals"].as_array() {
+                    if !meals.is_empty() {
+                        let mut out = format!("No meals named '{}' found, but {} meals use '{}' as an ingredient:\n\n", query, meals.len(), first_word);
+                        for meal in meals.iter().take(10) {
+                            let id = meal["idMeal"].as_str().unwrap_or("");
+                            let name = meal["strMeal"].as_str().unwrap_or("");
+                            let thumb = meal["strMealThumb"].as_str().unwrap_or("");
+                            out.push_str(&format!("**{name}** [{id}]\n  Image: {thumb}\n\n"));
+                        }
+                        return Ok(out);
+                    }
+                }
+            }
+        }
     }
-    Ok(out)
+
+    Err(format!("No meals found for '{}'. Try a different search term.", query))
 }
 
 fn meal_by_ingredient(input: &Value) -> Result<String, String> {
@@ -102,9 +148,27 @@ fn meal_by_ingredient(input: &Value) -> Result<String, String> {
     let url = format!("https://www.themealdb.com/api/json/v1/1/filter.php?i={}", ingredient.replace(' ', "_"));
     let body = http_get(&url)?;
     let data: Value = serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
-    let meals = data["meals"].as_array().ok_or_else(|| format!("No meals found with ingredient '{}'.", ingredient))?;
 
-    let mut out = format!("Meals with {}:\n\n", ingredient);
+    if let Some(meals) = data["meals"].as_array() {
+        if !meals.is_empty() {
+            let mut out = format!("Meals with {}:\n\n", ingredient);
+            for meal in meals.iter().take(15) {
+                let id = meal["idMeal"].as_str().unwrap_or("");
+                let name = meal["strMeal"].as_str().unwrap_or("");
+                let thumb = meal["strMealThumb"].as_str().unwrap_or("");
+                out.push_str(&format!("**{name}** [{id}]\n  {thumb}\n\n"));
+            }
+            return Ok(out);
+        }
+    }
+
+    // Fall back to name search when ingredient filter returns nothing
+    let search_url = format!("https://www.themealdb.com/api/json/v1/1/search.php?s={}", ingredient.replace(' ', "%20"));
+    let search_body = http_get(&search_url)?;
+    let search_data: Value = serde_json::from_str(&search_body).map_err(|e| format!("parse: {e}"))?;
+    let meals = search_data["meals"].as_array().ok_or_else(|| format!("No meals found with ingredient or name '{}'.", ingredient))?;
+
+    let mut out = format!("No meals filtered by ingredient '{}' — showing name matches instead:\n\n", ingredient);
     for meal in meals.iter().take(15) {
         let id = meal["idMeal"].as_str().unwrap_or("");
         let name = meal["strMeal"].as_str().unwrap_or("");

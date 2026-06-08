@@ -2,7 +2,7 @@
 
 [package]
 name = "meal-finder"
-version = "0.1.2"
+version = "0.1.4"
 edition = "2021"
 
 [lib]
