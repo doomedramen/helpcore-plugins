@@ -1,0 +1,18 @@
+{
+  "tools": [
+    {
+      "name": "calc",
+      "description": "Evaluate a mathematical expression. Supports arithmetic (+, -, *, /, ^, %), parentheses, and functions (sqrt, sin, cos, tan, abs, log, ln, exp, floor, ceil, round). Constants: pi, e. Use for questions like 'what is 15% of 80', 'sqrt(144) + 5^2', or 'sin(pi/4)'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["expression"],
+        "properties": {
+          "expression": {
+            "type": "string",
+            "description": "The mathematical expression to evaluate, e.g. '2 + 3 * 4', 'sqrt(144)', 'sin(pi/4) + cos(pi/4)'"
+          }
+        }
+      }
+    }
+  ]
+}

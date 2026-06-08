@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "calculator"
+version = "0.1.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { version = "0.51", default-features = false, features = ["macros"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = "s"
+strip = true

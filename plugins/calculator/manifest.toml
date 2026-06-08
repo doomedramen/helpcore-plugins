@@ -1,0 +1,6 @@
+id = "calculator"
+name = "Calculator"
+version = "0.1.1"
+description = "Evaluate mathematical expressions — basic arithmetic, trigonometry, logarithms, and more"
+tier = "wasm"
+permissions = []
