@@ -65,10 +65,22 @@ fn load_config() -> Result<Config, String> {
     let host = host.trim_end_matches('/').to_string();
 
     // Try API token auth first
-    if let (Ok(token_id), Ok(token_secret)) = (
-        host::secret_read("token_id"),
-        host::secret_read("token_secret"),
-    ) {
+    let token_id_result = host::secret_read("token_id");
+    let token_secret_result = host::secret_read("token_secret");
+
+    // Surface permission errors immediately instead of swallowing them
+    if let Err(ref e) = token_id_result {
+        if e.contains("not approved") {
+            return Err(e.clone());
+        }
+    }
+    if let Err(ref e) = token_secret_result {
+        if e.contains("not approved") {
+            return Err(e.clone());
+        }
+    }
+
+    if let (Ok(token_id), Ok(token_secret)) = (token_id_result, token_secret_result) {
         return Ok(Config {
             host,
             auth: AuthMethod::Token {
@@ -78,9 +90,16 @@ fn load_config() -> Result<Config, String> {
     }
 
     // Fall back to username/password auth
-    if let (Ok(username), Ok(password)) =
-        (host::config_read("username"), host::secret_read("password"))
-    {
+    let username_result = host::config_read("username");
+    let password_result = host::secret_read("password");
+
+    if let Err(ref e) = password_result {
+        if e.contains("not approved") {
+            return Err(e.clone());
+        }
+    }
+
+    if let (Ok(username), Ok(password)) = (username_result, password_result) {
         return Ok(Config {
             host,
             auth: AuthMethod::Password { username, password },
