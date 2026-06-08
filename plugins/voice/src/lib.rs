@@ -123,11 +123,17 @@ fn transcribe_audio(input: &Value) -> Result<String, String> {
 
     let stt_url = host::config_read("stt_url").map_err(|_| "STT URL not configured".to_string())?;
     let stt_url = stt_url.trim_end_matches('/').to_string();
-    let api_key = host::secret_read("stt_api_key").ok();
+    let api_key = host::secret_read("stt_api_key").map_err(|e| {
+        if e.contains("not approved") {
+            e
+        } else {
+            "STT API key is not configured. Set it in the plugin settings.".to_string()
+        }
+    })?;
     let model = host::config_read("stt_model").unwrap_or_else(|_| "whisper-1".into());
 
     let url_lower = stt_url.to_lowercase();
-    let api_key = api_key.as_deref();
+    let api_key = Some(api_key.as_str());
 
     let (method, url, headers, body): (
         &str,
@@ -412,14 +418,20 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
 
     let tts_url = host::config_read("tts_url").map_err(|_| "TTS URL not configured".to_string())?;
     let tts_url = tts_url.trim_end_matches('/').to_string();
-    let api_key = host::secret_read("tts_api_key").ok();
+    let api_key = host::secret_read("tts_api_key").map_err(|e| {
+        if e.contains("not approved") {
+            e
+        } else {
+            "TTS API key is not configured. Set it in the plugin settings.".to_string()
+        }
+    })?;
     let model = host::config_read("tts_model").unwrap_or_else(|_| "tts-1".into());
     let voice = input
         .get("voice")
         .and_then(Value::as_str)
         .map(str::to_string)
         .unwrap_or_else(|| host::config_read("tts_voice").unwrap_or_else(|_| "alloy".into()));
-    let api_key = api_key.as_deref();
+    let api_key = Some(api_key.as_str());
 
     let chunks = split_text(text, MAX_CHARS_PER_CHUNK);
 

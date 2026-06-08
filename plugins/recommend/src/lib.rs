@@ -79,8 +79,12 @@ fn http_get(url: &str) -> Result<String, String> {
     Ok(resp.body)
 }
 
-fn get_api_key() -> Option<String> {
-    host::secret_read("api_key").ok()
+fn get_api_key() -> Result<Option<String>, String> {
+    match host::secret_read("api_key") {
+        Ok(key) => Ok(Some(key)),
+        Err(e) if e.contains("not found") => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 fn type_param(media_type: &str) -> Result<&'static str, String> {
@@ -107,7 +111,7 @@ fn recommend(input: &Value) -> Result<String, String> {
         "https://tastedive.com/api/similar?q={}&type={type_str}&limit={limit}&info=1",
         query.replace(' ', "+")
     );
-    if let Some(key) = get_api_key() {
+    if let Some(key) = get_api_key()? {
         url.push_str(&format!("&k={key}"));
     }
 

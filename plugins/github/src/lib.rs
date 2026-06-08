@@ -78,13 +78,15 @@ fn github_request<T: for<'de> Deserialize<'de>>(
         Value::String("2022-11-28".into()),
     );
 
-    if let Ok(token) = host::secret_read("token") {
-        if !token.is_empty() {
+    match host::secret_read("token") {
+        Ok(token) if !token.is_empty() => {
             headers.insert(
                 "Authorization".into(),
                 Value::String(format!("Bearer {}", token.trim())),
             );
         }
+        Err(e) if e.contains("not approved") => return Err(e),
+        _ => {} // Token not configured or empty — proceed unauthenticated
     }
 
     let req = HttpRequest {
@@ -324,13 +326,15 @@ fn get_file_content(input: &Value) -> Result<String, String> {
         Value::String("helpcore-github-plugin/0.1.0".into()),
     );
 
-    if let Ok(token) = host::secret_read("token") {
-        if !token.is_empty() {
+    match host::secret_read("token") {
+        Ok(token) if !token.is_empty() => {
             headers.insert(
                 "Authorization".into(),
                 Value::String(format!("Bearer {}", token.trim())),
             );
         }
+        Err(e) if e.contains("not approved") => return Err(e),
+        _ => {}
     }
 
     let req = HttpRequest {
