@@ -10,6 +10,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -26,14 +27,14 @@ struct Plex;
 
 impl Guest for Plex {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
-            "plex_search"         => plex_search(&input),
+            "plex_search" => plex_search(&input),
             "plex_recently_added" => plex_recently_added(&input),
-            "plex_libraries"      => plex_libraries(&input),
-            "plex_now_playing"    => plex_now_playing(&input),
+            "plex_libraries" => plex_libraries(&input),
+            "plex_now_playing" => plex_now_playing(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
     }
@@ -49,9 +50,10 @@ struct Config {
 }
 
 fn load_config() -> Result<Config, String> {
-    let url = host::config_read("url")
-        .map_err(|_| "Plex server URL is not configured. Set it in the plugin settings.".to_string())?;
-    let token = host::config_read("token")
+    let url = host::config_read("url").map_err(|_| {
+        "Plex server URL is not configured. Set it in the plugin settings.".to_string()
+    })?;
+    let token = host::secret_read("token")
         .map_err(|_| "Plex token is not configured. Set it in the plugin settings.".to_string())?;
     Ok(Config {
         url: url.trim_end_matches('/').to_string(),
@@ -79,11 +81,11 @@ struct HttpResponse {
 fn plex_get(path: &str) -> Result<String, String> {
     let config = load_config()?;
     let mut headers = serde_json::Map::new();
+    headers.insert("X-Plex-Token".into(), Value::String(config.token.clone()));
     headers.insert(
-        "X-Plex-Token".into(),
-        Value::String(config.token.clone()),
+        "Accept".into(),
+        Value::String("application/json".to_string()),
     );
-    headers.insert("Accept".into(), Value::String("application/json".to_string()));
     let req = HttpRequest {
         method: "GET",
         url: format!("{}{}", config.url, path),
@@ -130,7 +132,10 @@ struct Tag {
 }
 
 fn tag_attr<'a>(attrs: &'a [(String, String)], key: &str) -> Option<&'a str> {
-    attrs.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    attrs
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.as_str())
 }
 
 fn decode_entities(s: &str) -> String {
@@ -143,11 +148,31 @@ fn decode_entities(s: &str) -> String {
             if let Some(end) = rest.find(';') {
                 let entity = &rest[..=end];
                 match entity {
-                    "&amp;"  => { result.push('&'); i += 5; continue; }
-                    "&lt;"   => { result.push('<'); i += 4; continue; }
-                    "&gt;"   => { result.push('>'); i += 4; continue; }
-                    "&quot;" => { result.push('"'); i += 6; continue; }
-                    "&apos;" => { result.push('\''); i += 6; continue; }
+                    "&amp;" => {
+                        result.push('&');
+                        i += 5;
+                        continue;
+                    }
+                    "&lt;" => {
+                        result.push('<');
+                        i += 4;
+                        continue;
+                    }
+                    "&gt;" => {
+                        result.push('>');
+                        i += 4;
+                        continue;
+                    }
+                    "&quot;" => {
+                        result.push('"');
+                        i += 6;
+                        continue;
+                    }
+                    "&apos;" => {
+                        result.push('\'');
+                        i += 6;
+                        continue;
+                    }
                     _ => { /* unknown entity, keep as-is */ }
                 }
             }
@@ -246,8 +271,7 @@ fn parse_xml_tags(xml: &str) -> Vec<Tag> {
             {
                 i += 1;
             }
-            let attr_name =
-                std::str::from_utf8(&bytes[attr_start..i]).unwrap_or("");
+            let attr_name = std::str::from_utf8(&bytes[attr_start..i]).unwrap_or("");
             if attr_name.is_empty() {
                 while i < bytes.len() && bytes[i] != b'>' && bytes[i] != b'/' {
                     i += 1;
@@ -281,8 +305,7 @@ fn parse_xml_tags(xml: &str) -> Vec<Tag> {
             while i < bytes.len() && bytes[i] != quote {
                 i += 1;
             }
-            let value =
-                std::str::from_utf8(&bytes[val_start..i]).unwrap_or("");
+            let value = std::str::from_utf8(&bytes[val_start..i]).unwrap_or("");
             if i < bytes.len() {
                 i += 1;
             } // skip closing quote
@@ -347,16 +370,16 @@ fn library_name(attrs: &[(String, String)]) -> String {
 
 fn human_type(plex_type: &str) -> &str {
     match plex_type {
-        "movie"   => "Movie",
+        "movie" => "Movie",
         "episode" => "TV Episode",
-        "show"    => "TV Show",
-        "season"  => "Season",
-        "track"   => "Music Track",
-        "artist"  => "Artist",
-        "album"   => "Album",
-        "photo"   => "Photo",
-        "clip"    => "Clip",
-        other     => other,
+        "show" => "TV Show",
+        "season" => "Season",
+        "track" => "Music Track",
+        "artist" => "Artist",
+        "album" => "Album",
+        "photo" => "Photo",
+        "clip" => "Clip",
+        other => other,
     }
 }
 
@@ -396,7 +419,10 @@ fn search_from_json(body: &str, config: &Config) -> Result<String, String> {
     let mut out = format!("Plex search results:\n");
     for item in metadata.iter().take(10) {
         let title = item["title"].as_str().unwrap_or("");
-        let year = item["year"].as_u64().map(|y| y.to_string()).unwrap_or_default();
+        let year = item["year"]
+            .as_u64()
+            .map(|y| y.to_string())
+            .unwrap_or_default();
         let ptype = item["type"].as_str().unwrap_or("");
         let summary = item["summary"].as_str().unwrap_or("");
         let thumb = item["thumb"].as_str().unwrap_or("");
@@ -405,7 +431,15 @@ fn search_from_json(body: &str, config: &Config) -> Result<String, String> {
         let grandparent = item["grandparentTitle"].as_str().unwrap_or("");
 
         out.push_str(&format_item(
-            title, &year, ptype, summary, thumb, lib, parent, grandparent, config,
+            title,
+            &year,
+            ptype,
+            summary,
+            thumb,
+            lib,
+            parent,
+            grandparent,
+            config,
         ));
     }
     Ok(out.trim_end().to_string())
@@ -439,7 +473,15 @@ fn search_from_xml(body: &str, config: &Config) -> Result<String, String> {
         let grandparent = tag_attr(&tag.attrs, "grandparentTitle").unwrap_or("");
 
         out.push_str(&format_item(
-            title, year, ptype, summary, thumb, &lib, parent, grandparent, config,
+            title,
+            year,
+            ptype,
+            summary,
+            thumb,
+            &lib,
+            parent,
+            grandparent,
+            config,
         ));
     }
     Ok(out.trim_end().to_string())
@@ -500,10 +542,7 @@ fn format_item(
 // ── plex_recently_added ───────────────────────────────────────────────────────
 
 fn plex_recently_added(input: &Value) -> Result<String, String> {
-    let type_filter = input
-        .get("type")
-        .and_then(Value::as_str)
-        .unwrap_or("all");
+    let type_filter = input.get("type").and_then(Value::as_str).unwrap_or("all");
     let count = input
         .get("count")
         .and_then(|v| v.as_u64())
@@ -638,8 +677,8 @@ fn plex_now_playing(_input: &Value) -> Result<String, String> {
         &str, // type
         &str, // user
         &str, // player
-        u64,   // view_offset (ms)
-        u64,   // duration (ms)
+        u64,  // view_offset (ms)
+        u64,  // duration (ms)
         &str, // state
         &str, // grandparentTitle
     )> = Vec::new();
@@ -647,10 +686,7 @@ fn plex_now_playing(_input: &Value) -> Result<String, String> {
     let mut i = 0;
     while i < tags.len() {
         let tag = &tags[i];
-        if tag.depth == 1
-            && (tag.name == "Video" || tag.name == "Track")
-            && !tag.self_closing
-        {
+        if tag.depth == 1 && (tag.name == "Video" || tag.name == "Track") && !tag.self_closing {
             let title = tag_attr(&tag.attrs, "title").unwrap_or("Unknown");
             let ptype = tag_attr(&tag.attrs, "type").unwrap_or("");
             let view_offset = tag_attr(&tag.attrs, "viewOffset")
@@ -678,7 +714,16 @@ fn plex_now_playing(_input: &Value) -> Result<String, String> {
                 j += 1;
             }
             i = j;
-            sessions.push((title, ptype, user, player, view_offset, duration, player_state, grandparent));
+            sessions.push((
+                title,
+                ptype,
+                user,
+                player,
+                view_offset,
+                duration,
+                player_state,
+                grandparent,
+            ));
         } else {
             i += 1;
         }
@@ -744,10 +789,7 @@ mod tests {
         assert_eq!(decode_entities("Foo &amp; Bar"), "Foo & Bar");
         assert_eq!(decode_entities("a &lt; b"), "a < b");
         assert_eq!(decode_entities("a &gt; b"), "a > b");
-        assert_eq!(
-            decode_entities("&quot;hello&quot;"),
-            "\"hello\""
-        );
+        assert_eq!(decode_entities("&quot;hello&quot;"), "\"hello\"");
     }
 
     #[test]

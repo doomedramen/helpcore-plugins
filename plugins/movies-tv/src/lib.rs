@@ -9,6 +9,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
         world plugin {
             import host;
@@ -24,8 +25,8 @@ struct MoviesTv;
 
 impl Guest for MoviesTv {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
         match tool.as_str() {
             "movie_search" => movie_search(&input),
             "tv_search" => tv_search(&input),
@@ -39,7 +40,10 @@ impl Guest for MoviesTv {
 export!(MoviesTv);
 
 fn get_str<'a>(input: &'a Value, key: &str) -> Result<&'a str, String> {
-    input.get(key).and_then(Value::as_str).filter(|s| !s.is_empty())
+    input
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
         .ok_or_else(|| format!("{key} is required"))
 }
 
@@ -48,29 +52,51 @@ fn get_u64_opt(input: &Value, key: &str) -> Option<u64> {
 }
 
 #[derive(Serialize)]
-struct HttpReq<'a> { method: &'a str, url: String, headers: serde_json::Map<String, Value>, #[serde(skip_serializing_if = "Option::is_none")] body: Option<String> }
+struct HttpReq<'a> {
+    method: &'a str,
+    url: String,
+    headers: serde_json::Map<String, Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    body: Option<String>,
+}
 #[derive(Deserialize)]
-struct HttpResp { status: u16, body: String }
+struct HttpResp {
+    status: u16,
+    body: String,
+}
 
 fn http_get(url: &str) -> Result<String, String> {
     let mut headers = serde_json::Map::new();
-    headers.insert("Accept".to_string(), Value::String("application/json".to_string()));
-    let req = HttpReq { method: "GET", url: url.to_string(), headers, body: None };
+    headers.insert(
+        "Accept".to_string(),
+        Value::String("application/json".to_string()),
+    );
+    let req = HttpReq {
+        method: "GET",
+        url: url.to_string(),
+        headers,
+        body: None,
+    };
     let req_json = serde_json::to_string(&req).map_err(|e| format!("serialize: {e}"))?;
     let resp_json = host::http_request(&req_json)?;
-    let resp: HttpResp = serde_json::from_str(&resp_json).map_err(|e| format!("parse HTTP: {e}"))?;
-    if resp.status >= 400 { return Err(format!("HTTP {}: {}", resp.status, resp.body)); }
+    let resp: HttpResp =
+        serde_json::from_str(&resp_json).map_err(|e| format!("parse HTTP: {e}"))?;
+    if resp.status >= 400 {
+        return Err(format!("HTTP {}: {}", resp.status, resp.body));
+    }
     Ok(resp.body)
 }
 
 fn get_api_key() -> Result<String, String> {
-    host::config_read("api_key").map_err(|_| "TMDB API key not configured. Get a free key at https://www.themoviedb.org/settings/api and add it to your plugin settings.".to_string())
+    host::secret_read("api_key").map_err(|_| "TMDB API key not configured. Get a free key at https://www.themoviedb.org/settings/api and add it to your plugin settings.".to_string())
 }
 
 fn tmdb_get(path: &str) -> Result<String, String> {
     let key = get_api_key()?;
     let sep = if path.contains('?') { '&' } else { '?' };
-    http_get(&format!("https://api.themoviedb.org/3{path}{sep}api_key={key}"))
+    http_get(&format!(
+        "https://api.themoviedb.org/3{path}{sep}api_key={key}"
+    ))
 }
 
 fn format_rating(vote: f64, count: u64) -> String {
@@ -78,18 +104,26 @@ fn format_rating(vote: f64, count: u64) -> String {
 }
 
 fn poster_url(path: &str, size: &str) -> String {
-    if path.is_empty() { String::new() } else { format!("https://image.tmdb.org/t/p/{size}{path}") }
+    if path.is_empty() {
+        String::new()
+    } else {
+        format!("https://image.tmdb.org/t/p/{size}{path}")
+    }
 }
 
 fn movie_search(input: &Value) -> Result<String, String> {
     let query = get_str(input, "query")?;
     let year = get_u64_opt(input, "year");
     let mut url = format!("/search/movie?query={}", query.replace(' ', "+"));
-    if let Some(y) = year { url.push_str(&format!("&primary_release_year={y}")); }
+    if let Some(y) = year {
+        url.push_str(&format!("&primary_release_year={y}"));
+    }
 
     let body = tmdb_get(&url)?;
     let data: Value = serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
-    let results = data["results"].as_array().ok_or_else(|| format!("No movies found for '{}'.", query))?;
+    let results = data["results"]
+        .as_array()
+        .ok_or_else(|| format!("No movies found for '{}'.", query))?;
 
     let mut out = String::new();
     for movie in results.iter().take(5) {
@@ -115,11 +149,15 @@ fn tv_search(input: &Value) -> Result<String, String> {
     let query = get_str(input, "query")?;
     let year = get_u64_opt(input, "year");
     let mut url = format!("/search/tv?query={}", query.replace(' ', "+"));
-    if let Some(y) = year { url.push_str(&format!("&first_air_date_year={y}")); }
+    if let Some(y) = year {
+        url.push_str(&format!("&first_air_date_year={y}"));
+    }
 
     let body = tmdb_get(&url)?;
     let data: Value = serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
-    let results = data["results"].as_array().ok_or_else(|| format!("No TV shows found for '{}'.", query))?;
+    let results = data["results"]
+        .as_array()
+        .ok_or_else(|| format!("No TV shows found for '{}'.", query))?;
 
     let mut out = String::new();
     for show in results.iter().take(5) {
@@ -131,8 +169,15 @@ fn tv_search(input: &Value) -> Result<String, String> {
         let count = show["vote_count"].as_u64().unwrap_or(0);
         let overview = show["overview"].as_str().unwrap_or("");
         let poster = poster_url(show["poster_path"].as_str().unwrap_or(""), "w200");
-        let origin = show["origin_country"].as_array()
-            .map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+        let origin = show["origin_country"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
         let overview = truncate(overview, 200);
 
         out.push_str(&format!(
@@ -144,12 +189,19 @@ fn tv_search(input: &Value) -> Result<String, String> {
 }
 
 fn movie_detail(input: &Value) -> Result<String, String> {
-    let movie_id = input.get("movie_id").and_then(|v| v.as_u64()).ok_or("movie_id is required")?;
+    let movie_id = input
+        .get("movie_id")
+        .and_then(|v| v.as_u64())
+        .ok_or("movie_id is required")?;
     let body = tmdb_get(&format!("/movie/{movie_id}?append_to_response=credits"))?;
     let m: Value = serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
 
     let title = m["title"].as_str().unwrap_or("");
-    let tagline = m["tagline"].as_str().filter(|s| !s.is_empty()).map(|t| format!("_{t}_\n")).unwrap_or_default();
+    let tagline = m["tagline"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(|t| format!("_{t}_\n"))
+        .unwrap_or_default();
     let date = m["release_date"].as_str().unwrap_or("?");
     let runtime = m["runtime"].as_u64().unwrap_or(0);
     let vote = m["vote_average"].as_f64().unwrap_or(0.0);
@@ -158,32 +210,55 @@ fn movie_detail(input: &Value) -> Result<String, String> {
     let revenue = m["revenue"].as_u64().unwrap_or(0);
     let overview = m["overview"].as_str().unwrap_or("");
 
-    let genres: Vec<&str> = m["genres"].as_array().map(|a| a.iter().filter_map(|g| g["name"].as_str()).collect()).unwrap_or_default();
-    let countries: Vec<&str> = m["production_countries"].as_array().map(|a| a.iter().filter_map(|c| c["name"].as_str()).collect()).unwrap_or_default();
+    let genres: Vec<&str> = m["genres"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|g| g["name"].as_str()).collect())
+        .unwrap_or_default();
+    let countries: Vec<&str> = m["production_countries"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|c| c["name"].as_str()).collect())
+        .unwrap_or_default();
 
-    let cast: Vec<String> = m["credits"]["cast"].as_array().map(|a| {
-        a.iter().take(10).map(|c| {
-            let name = c["name"].as_str().unwrap_or("");
-            let character = c["character"].as_str().unwrap_or("");
-            format!("{name} as {character}")
-        }).collect()
-    }).unwrap_or_default();
+    let cast: Vec<String> = m["credits"]["cast"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .take(10)
+                .map(|c| {
+                    let name = c["name"].as_str().unwrap_or("");
+                    let character = c["character"].as_str().unwrap_or("");
+                    format!("{name} as {character}")
+                })
+                .collect()
+        })
+        .unwrap_or_default();
 
-    let director = m["credits"]["crew"].as_array().map(|a| {
-        a.iter().find(|c| c["job"].as_str() == Some("Director"))
-            .and_then(|c| c["name"].as_str()).unwrap_or("")
-    }).unwrap_or("");
+    let director = m["credits"]["crew"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .find(|c| c["job"].as_str() == Some("Director"))
+                .and_then(|c| c["name"].as_str())
+                .unwrap_or("")
+        })
+        .unwrap_or("");
 
     let poster = poster_url(m["poster_path"].as_str().unwrap_or(""), "w300");
 
     let mut out = format!("**{title}** ({date})\n{tagline}");
-    if !director.is_empty() { out.push_str(&format!("Director: {director}\n")); }
+    if !director.is_empty() {
+        out.push_str(&format!("Director: {director}\n"));
+    }
     out.push_str(&format!("Rating: {}\n", format_rating(vote, count)));
     out.push_str(&format!("Runtime: {runtime} min\n"));
     out.push_str(&format!("Genres: {}\n", genres.join(", ")));
     out.push_str(&format!("Countries: {}\n", countries.join(", ")));
-    if budget > 0 { out.push_str(&format!("Budget: ${}\n", format_money(budget))); }
-    if revenue > 0 { out.push_str(&format!("Revenue: ${}\n", format_money(revenue))); }
+    if budget > 0 {
+        out.push_str(&format!("Budget: ${}\n", format_money(budget)));
+    }
+    if revenue > 0 {
+        out.push_str(&format!("Revenue: ${}\n", format_money(revenue)));
+    }
     out.push_str(&format!("\n{overview}\n\n"));
     out.push_str(&format!("Cast:\n{}\n\n", cast.join("\n")));
     out.push_str(&format!("Poster: {poster}"));
@@ -192,7 +267,10 @@ fn movie_detail(input: &Value) -> Result<String, String> {
 }
 
 fn tv_detail(input: &Value) -> Result<String, String> {
-    let tv_id = input.get("tv_id").and_then(|v| v.as_u64()).ok_or("tv_id is required")?;
+    let tv_id = input
+        .get("tv_id")
+        .and_then(|v| v.as_u64())
+        .ok_or("tv_id is required")?;
     let body = tmdb_get(&format!("/tv/{tv_id}"))?;
     let m: Value = serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
 
@@ -202,25 +280,43 @@ fn tv_detail(input: &Value) -> Result<String, String> {
     let status = m["status"].as_str().unwrap_or("");
     let seasons = m["number_of_seasons"].as_u64().unwrap_or(0);
     let episodes = m["number_of_episodes"].as_u64().unwrap_or(0);
-    let runtime = m["episode_run_time"].as_array()
-        .and_then(|a| a.first()).and_then(Value::as_u64).unwrap_or(0);
+    let runtime = m["episode_run_time"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
     let vote = m["vote_average"].as_f64().unwrap_or(0.0);
     let count = m["vote_count"].as_u64().unwrap_or(0);
     let overview = m["overview"].as_str().unwrap_or("");
 
-    let genres: Vec<&str> = m["genres"].as_array().map(|a| a.iter().filter_map(|g| g["name"].as_str()).collect()).unwrap_or_default();
-    let networks: Vec<&str> = m["networks"].as_array().map(|a| a.iter().filter_map(|n| n["name"].as_str()).collect()).unwrap_or_default();
-    let created_by: Vec<&str> = m["created_by"].as_array().map(|a| a.iter().filter_map(|c| c["name"].as_str()).collect()).unwrap_or_default();
+    let genres: Vec<&str> = m["genres"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|g| g["name"].as_str()).collect())
+        .unwrap_or_default();
+    let networks: Vec<&str> = m["networks"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|n| n["name"].as_str()).collect())
+        .unwrap_or_default();
+    let created_by: Vec<&str> = m["created_by"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|c| c["name"].as_str()).collect())
+        .unwrap_or_default();
 
     let poster = poster_url(m["poster_path"].as_str().unwrap_or(""), "w300");
 
     let mut out = format!("**{name}** ({date} — {last})\n");
     out.push_str(&format!("Status: {status}\n"));
     out.push_str(&format!("Rating: {}\n", format_rating(vote, count)));
-    out.push_str(&format!("Seasons: {seasons} | Episodes: {episodes} | Runtime: {runtime} min\n"));
+    out.push_str(&format!(
+        "Seasons: {seasons} | Episodes: {episodes} | Runtime: {runtime} min\n"
+    ));
     out.push_str(&format!("Genres: {}\n", genres.join(", ")));
-    if !networks.is_empty() { out.push_str(&format!("Networks: {}\n", networks.join(", "))); }
-    if !created_by.is_empty() { out.push_str(&format!("Created by: {}\n", created_by.join(", "))); }
+    if !networks.is_empty() {
+        out.push_str(&format!("Networks: {}\n", networks.join(", ")));
+    }
+    if !created_by.is_empty() {
+        out.push_str(&format!("Created by: {}\n", created_by.join(", ")));
+    }
     out.push_str(&format!("\n{overview}\n\n"));
     out.push_str(&format!("Poster: {poster}"));
 
@@ -228,7 +324,11 @@ fn tv_detail(input: &Value) -> Result<String, String> {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max { s.to_string() } else { format!("{}…", &s[..max]) }
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..max])
+    }
 }
 
 fn format_money(n: u64) -> String {
@@ -236,7 +336,9 @@ fn format_money(n: u64) -> String {
     let len = s.len();
     let mut result = String::new();
     for (i, ch) in s.chars().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 { result.push(','); }
+        if i > 0 && (len - i) % 3 == 0 {
+            result.push(',');
+        }
         result.push(ch);
     }
     result

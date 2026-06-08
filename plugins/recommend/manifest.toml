@@ -1,9 +1,9 @@
 id = "recommend"
 name = "Recommend"
-version = "0.1.1"
+version = "0.1.3"
 description = "Get recommendations for music, movies, TV shows, books, games, and more based on things you like — powered by TasteDive"
 tier = "wasm"
-permissions = ["outbound_http"]
+permissions = ["outbound_http", "read_secrets"]
 allowed_hosts = [
     "tastedive.com",
 ]

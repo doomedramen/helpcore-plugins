@@ -10,6 +10,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -26,12 +27,12 @@ struct Seerr;
 
 impl Guest for Seerr {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
-            "seerr_search"   => seerr_search(&input),
-            "seerr_request"  => seerr_request(&input),
+            "seerr_search" => seerr_search(&input),
+            "seerr_request" => seerr_request(&input),
             "seerr_trending" => seerr_trending(&input),
             "seerr_requests" => seerr_requests(&input),
             _ => Err(format!("unknown tool: {tool}")),
@@ -51,9 +52,12 @@ struct Config {
 fn load_config() -> Result<Config, String> {
     let url = host::config_read("url")
         .map_err(|_| "Seerr URL is not configured. Set it in the plugin settings.".to_string())?;
-    let api_key = host::config_read("api_key")
+    let api_key = host::secret_read("api_key")
         .map_err(|_| "Seerr API key is not configured. Find it in Seerr → Settings → General → API Key and add it to your plugin settings.".to_string())?;
-    Ok(Config { url: url.trim_end_matches('/').to_string(), api_key })
+    Ok(Config {
+        url: url.trim_end_matches('/').to_string(),
+        api_key,
+    })
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -89,13 +93,17 @@ fn http_get(config: &Config, path: &str) -> Result<(u16, String), String> {
     };
     let req_json = serde_json::to_string(&req).map_err(|e| format!("serialize: {e}"))?;
     let resp_json = host::http_request(&req_json)?;
-    let resp: HttpResponse = serde_json::from_str(&resp_json).map_err(|e| format!("parse HTTP: {e}"))?;
+    let resp: HttpResponse =
+        serde_json::from_str(&resp_json).map_err(|e| format!("parse HTTP: {e}"))?;
     Ok((resp.status, resp.body))
 }
 
 fn http_post_json(config: &Config, path: &str, body: Value) -> Result<(u16, String), String> {
     let mut headers = seerr_headers(&config.api_key);
-    headers.insert("Content-Type".into(), Value::String("application/json".into()));
+    headers.insert(
+        "Content-Type".into(),
+        Value::String("application/json".into()),
+    );
     let req = HttpRequest {
         method: "POST".into(),
         url: format!("{}/api/v1{path}", config.url),
@@ -104,7 +112,8 @@ fn http_post_json(config: &Config, path: &str, body: Value) -> Result<(u16, Stri
     };
     let req_json = serde_json::to_string(&req).map_err(|e| format!("serialize: {e}"))?;
     let resp_json = host::http_request(&req_json)?;
-    let resp: HttpResponse = serde_json::from_str(&resp_json).map_err(|e| format!("parse HTTP: {e}"))?;
+    let resp: HttpResponse =
+        serde_json::from_str(&resp_json).map_err(|e| format!("parse HTTP: {e}"))?;
     Ok((resp.status, resp.body))
 }
 
@@ -114,7 +123,10 @@ fn seerr_get(config: &Config, path: &str) -> Result<Value, String> {
         return Err("Unauthorized — check your Seerr API key in plugin settings.".into());
     }
     if status >= 400 {
-        return Err(format!("Seerr returned HTTP {status}: {}", truncate(&body, 300)));
+        return Err(format!(
+            "Seerr returned HTTP {status}: {}",
+            truncate(&body, 300)
+        ));
     }
     serde_json::from_str(&body).map_err(|e| format!("parse response: {e}"))
 }
@@ -125,14 +137,21 @@ fn seerr_post(config: &Config, path: &str, body: Value) -> Result<Value, String>
         return Err("Unauthorized — check your Seerr API key in plugin settings.".into());
     }
     if status >= 400 {
-        return Err(format!("Seerr returned HTTP {status}: {}", truncate(&resp_body, 300)));
+        return Err(format!(
+            "Seerr returned HTTP {status}: {}",
+            truncate(&resp_body, 300)
+        ));
     }
     serde_json::from_str(&resp_body).map_err(|e| format!("parse response: {e}"))
 }
 
 fn truncate(s: &str, max: usize) -> String {
     let s = s.trim();
-    if s.len() <= max { s.to_string() } else { format!("{}…", &s[..max]) }
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..max])
+    }
 }
 
 fn url_encode(s: &str) -> String {
@@ -176,7 +195,10 @@ fn result_tmdb_id(item: &Value) -> u64 {
 }
 
 fn result_overview(item: &Value) -> String {
-    truncate(item.get("overview").and_then(Value::as_str).unwrap_or(""), 280)
+    truncate(
+        item.get("overview").and_then(Value::as_str).unwrap_or(""),
+        280,
+    )
 }
 
 fn result_poster(item: &Value) -> &str {
@@ -192,10 +214,10 @@ fn format_item(item: &Value) -> String {
     let poster = result_poster(item);
 
     let type_label = match media_type {
-        "movie"  => "Movie",
-        "tv"     => "TV Show",
+        "movie" => "Movie",
+        "tv" => "TV Show",
         "person" => "Person",
-        other    => other,
+        other => other,
     };
 
     let mut out = format!("**{title}** ({year}) [{type_label}] [TMDB: {tmdb_id}]");
@@ -221,7 +243,9 @@ fn map_status(status_val: &Value) -> &str {
 
 fn seerr_search(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let query = input.get("query").and_then(Value::as_str)
+    let query = input
+        .get("query")
+        .and_then(Value::as_str)
         .ok_or("query is required")?;
     let query = query.trim();
     if query.is_empty() {
@@ -231,7 +255,8 @@ fn seerr_search(input: &Value) -> Result<String, String> {
     let path = format!("/search?query={}", url_encode(query));
     let data = seerr_get(&config, &path)?;
 
-    let results = data["results"].as_array()
+    let results = data["results"]
+        .as_array()
         .ok_or_else(|| format!("No results found for '{}'.", query))?;
 
     if results.is_empty() {
@@ -243,10 +268,16 @@ fn seerr_search(input: &Value) -> Result<String, String> {
     let limit: usize = 10;
 
     for item in results.iter() {
-        if count >= limit { break; }
+        if count >= limit {
+            break;
+        }
         let title = result_title(item);
-        if title == "Unknown" { continue; }
-        if count > 0 { out.push_str("\n\n"); }
+        if title == "Unknown" {
+            continue;
+        }
+        if count > 0 {
+            out.push_str("\n\n");
+        }
         out.push_str(&format_item(item));
         count += 1;
     }
@@ -260,9 +291,13 @@ fn seerr_search(input: &Value) -> Result<String, String> {
 
 fn seerr_request(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let media_type = input.get("media_type").and_then(Value::as_str)
+    let media_type = input
+        .get("media_type")
+        .and_then(Value::as_str)
         .ok_or("media_type is required (movie or tv)")?;
-    let tmdb_id = input.get("tmdb_id").and_then(Value::as_u64)
+    let tmdb_id = input
+        .get("tmdb_id")
+        .and_then(Value::as_u64)
         .ok_or("tmdb_id is required")?;
     let seasons_raw = input.get("seasons");
 
@@ -282,15 +317,24 @@ fn seerr_request(input: &Value) -> Result<String, String> {
         let seasons_val: Value = match seasons_raw {
             Some(Value::String(s)) if s.trim() == "all" => Value::String("all".into()),
             Some(Value::String(s)) => {
-                let nums: Result<Vec<Value>, _> = s.split(',')
+                let nums: Result<Vec<Value>, _> = s
+                    .split(',')
                     .map(|p| p.trim().parse::<u64>().map(Value::from))
                     .collect();
-                Value::Array(nums.map_err(|_| "seasons must be 'all' or comma-separated numbers like '1,2,3'".to_string())?)
+                Value::Array(nums.map_err(|_| {
+                    "seasons must be 'all' or comma-separated numbers like '1,2,3'".to_string()
+                })?)
             }
             None => Value::String("all".into()),
-            _ => return Err("seasons must be 'all' or comma-separated numbers like '1,2,3'".to_string()),
+            _ => {
+                return Err(
+                    "seasons must be 'all' or comma-separated numbers like '1,2,3'".to_string(),
+                )
+            }
         };
-        body.as_object_mut().unwrap().insert("seasons".into(), seasons_val);
+        body.as_object_mut()
+            .unwrap()
+            .insert("seasons".into(), seasons_val);
     }
 
     let resp = seerr_post(&config, "/request", body)?;
@@ -298,19 +342,26 @@ fn seerr_request(input: &Value) -> Result<String, String> {
     let media = resp.get("media").unwrap_or(&resp);
     let title = result_title(media);
 
-    let media_label = if media_type == "movie" { "Movie" } else { "TV Show" };
+    let media_label = if media_type == "movie" {
+        "Movie"
+    } else {
+        "TV Show"
+    };
     Ok(format!("Request submitted: **{title}** ({media_label}) [TMDB: {tmdb_id}]. Check the status with seerr_requests."))
 }
 
 fn seerr_trending(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let count = input.get("count").and_then(Value::as_u64)
+    let count = input
+        .get("count")
+        .and_then(Value::as_u64)
         .unwrap_or(10)
         .clamp(1, 20) as usize;
 
     let data = seerr_get(&config, "/discover/trending")?;
 
-    let results = data["results"].as_array()
+    let results = data["results"]
+        .as_array()
         .ok_or("no trending results returned")?;
 
     if results.is_empty() {
@@ -321,10 +372,16 @@ fn seerr_trending(input: &Value) -> Result<String, String> {
     let mut shown: usize = 0;
 
     for item in results.iter() {
-        if shown >= count { break; }
+        if shown >= count {
+            break;
+        }
         let title = result_title(item);
-        if title == "Unknown" { continue; }
-        if shown > 0 { out.push_str("\n\n"); }
+        if title == "Unknown" {
+            continue;
+        }
+        if shown > 0 {
+            out.push_str("\n\n");
+        }
         out.push_str(&format_item(item));
         shown += 1;
     }
@@ -338,15 +395,16 @@ fn seerr_trending(input: &Value) -> Result<String, String> {
 
 fn seerr_requests(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let count = input.get("count").and_then(Value::as_u64)
+    let count = input
+        .get("count")
+        .and_then(Value::as_u64)
         .unwrap_or(10)
         .clamp(1, 50) as usize;
 
     let path = format!("/request?take={count}&sort=created&order=desc");
     let data = seerr_get(&config, &path)?;
 
-    let results = data["results"].as_array()
-        .ok_or("no requests found")?;
+    let results = data["results"].as_array().ok_or("no requests found")?;
 
     if results.is_empty() {
         return Ok("No requests found.".to_string());
@@ -356,31 +414,46 @@ fn seerr_requests(input: &Value) -> Result<String, String> {
     let mut shown: usize = 0;
 
     for req in results.iter() {
-        if shown >= count { break; }
+        if shown >= count {
+            break;
+        }
 
         let media = req.get("media").unwrap_or(req);
         let title = result_title(media);
         let media_type = result_type(media);
         let status = map_status(&req["status"]);
-        let requested_by = req.get("requestedBy")
-            .and_then(|r| r.get("username").or_else(|| r.get("plexUsername")).or_else(|| r.get("jellyfinUsername")))
+        let requested_by = req
+            .get("requestedBy")
+            .and_then(|r| {
+                r.get("username")
+                    .or_else(|| r.get("plexUsername"))
+                    .or_else(|| r.get("jellyfinUsername"))
+            })
             .and_then(Value::as_str)
             .unwrap_or("?");
         let created = req.get("createdAt").and_then(Value::as_str).unwrap_or("?");
         let date = created.get(..10).unwrap_or(created);
 
         let type_label = match media_type {
-            "movie"  => "Movie",
-            "tv"     => "TV Show",
-            other    => other,
+            "movie" => "Movie",
+            "tv" => "TV Show",
+            other => other,
         };
 
-        if shown > 0 { out.push('\n'); }
-        out.push_str(&format!("[{status}] **{title}** ({type_label}) — requested by {requested_by} on {date}"));
+        if shown > 0 {
+            out.push('\n');
+        }
+        out.push_str(&format!(
+            "[{status}] **{title}** ({type_label}) — requested by {requested_by} on {date}"
+        ));
 
         let seasons = req.get("seasons");
         if let Some(arr) = seasons.and_then(Value::as_array) {
-            let s: Vec<String> = arr.iter().filter_map(Value::as_str).map(|s| s.to_string()).collect();
+            let s: Vec<String> = arr
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|s| s.to_string())
+                .collect();
             if !s.is_empty() {
                 out.push_str(&format!("\n  Seasons: {}", s.join(", ")));
             }
@@ -412,7 +485,10 @@ mod tests {
 
     #[test]
     fn url_encode_special() {
-        assert_eq!(url_encode("star wars: a new hope"), "star%20wars%3A%20a%20new%20hope");
+        assert_eq!(
+            url_encode("star wars: a new hope"),
+            "star%20wars%3A%20a%20new%20hope"
+        );
     }
 
     #[test]

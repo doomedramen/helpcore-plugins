@@ -1,9 +1,9 @@
 id = "radarr"
 name = "Radarr"
-version = "0.1.2"
+version = "0.1.4"
 description = "Manage your Radarr movie download queue — search, add movies, and check download status"
 tier = "wasm"
-permissions = ["outbound_http"]
+permissions = ["outbound_http", "read_secrets"]
 allowed_hosts = ["*"]
 
 brief = "Use when the user asks to search for, add, or manage movies in their Radarr download server."

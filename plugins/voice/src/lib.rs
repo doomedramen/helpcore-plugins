@@ -11,6 +11,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -29,8 +30,8 @@ struct Voice;
 
 impl Guest for Voice {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
             "transcribe_audio" => transcribe_audio(&input),
@@ -99,9 +100,15 @@ fn send_http_binary(req: &HttpRequest) -> Result<String, String> {
 
 fn json_headers(api_key: Option<&str>) -> serde_json::Map<String, Value> {
     let mut h = serde_json::Map::new();
-    h.insert("Content-Type".into(), Value::String("application/json".into()));
+    h.insert(
+        "Content-Type".into(),
+        Value::String("application/json".into()),
+    );
     if let Some(key) = api_key {
-        h.insert("Authorization".into(), Value::String(format!("Bearer {key}")));
+        h.insert(
+            "Authorization".into(),
+            Value::String(format!("Bearer {key}")),
+        );
     }
     h
 }
@@ -114,40 +121,57 @@ fn transcribe_audio(input: &Value) -> Result<String, String> {
 
     let language = input.get("language").and_then(Value::as_str);
 
-    let stt_url = host::config_read("stt_url")
-        .map_err(|_| "STT URL not configured".to_string())?;
+    let stt_url = host::config_read("stt_url").map_err(|_| "STT URL not configured".to_string())?;
     let stt_url = stt_url.trim_end_matches('/').to_string();
-    let api_key = host::config_read("stt_api_key").ok();
+    let api_key = host::secret_read("stt_api_key").ok();
     let model = host::config_read("stt_model").unwrap_or_else(|_| "whisper-1".into());
 
     let url_lower = stt_url.to_lowercase();
     let api_key = api_key.as_deref();
 
-    let (method, url, headers, body): (&str, String, serde_json::Map<String, Value>, Option<String>) =
-        if url_lower.contains("deepgram") {
-            let mut u = format!(
-                "{}/v1/listen?smart_format=true&model={}&url={}",
-                stt_url,
-                url_encode(&model),
-                url_encode(audio_url)
+    let (method, url, headers, body): (
+        &str,
+        String,
+        serde_json::Map<String, Value>,
+        Option<String>,
+    ) = if url_lower.contains("deepgram") {
+        let mut u = format!(
+            "{}/v1/listen?smart_format=true&model={}&url={}",
+            stt_url,
+            url_encode(&model),
+            url_encode(audio_url)
+        );
+        if let Some(lang) = language {
+            u.push_str(&format!("&language={}", url_encode(lang)));
+        }
+        let mut h = serde_json::Map::new();
+        if let Some(key) = api_key {
+            h.insert(
+                "Authorization".into(),
+                Value::String(format!("Token {key}")),
             );
-            if let Some(lang) = language {
-                u.push_str(&format!("&language={}", url_encode(lang)));
-            }
-            let mut h = serde_json::Map::new();
-            if let Some(key) = api_key {
-                h.insert("Authorization".into(), Value::String(format!("Token {key}")));
-            }
-            ("POST", u, h, None)
-        } else {
-            let mut req_body = serde_json::json!({ "audio_url": audio_url });
-            if let Some(lang) = language {
-                req_body["language"] = Value::String(lang.to_string());
-            }
-            ("POST", stt_url, json_headers(api_key), Some(req_body.to_string()))
-        };
+        }
+        ("POST", u, h, None)
+    } else {
+        let mut req_body = serde_json::json!({ "audio_url": audio_url });
+        if let Some(lang) = language {
+            req_body["language"] = Value::String(lang.to_string());
+        }
+        (
+            "POST",
+            stt_url,
+            json_headers(api_key),
+            Some(req_body.to_string()),
+        )
+    };
 
-    let resp_body = send_http(&HttpRequest { method, url, headers, body, body_base64: None })?;
+    let resp_body = send_http(&HttpRequest {
+        method,
+        url,
+        headers,
+        body,
+        body_base64: None,
+    })?;
 
     let v: Value = serde_json::from_str(&resp_body)
         .map_err(|_| "STT response was not valid JSON".to_string())?;
@@ -269,7 +293,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 
     let remaining = bytes.len() - i;
     if remaining == 1 {
-        return Err("invalid base64: input length produces an impossible 1-byte remainder".to_string());
+        return Err(
+            "invalid base64: input length produces an impossible 1-byte remainder".to_string(),
+        );
     }
     if remaining >= 2 {
         let a = b64_char_value(bytes[i]).ok_or("invalid base64 character")?;
@@ -298,7 +324,8 @@ fn find_wav_data_offset(wav: &[u8]) -> Option<usize> {
     let mut pos = 12usize;
     while pos + 8 <= wav.len() {
         let chunk_id = &wav[pos..pos + 4];
-        let chunk_size = u32::from_le_bytes([wav[pos+4], wav[pos+5], wav[pos+6], wav[pos+7]]) as usize;
+        let chunk_size =
+            u32::from_le_bytes([wav[pos + 4], wav[pos + 5], wav[pos + 6], wav[pos + 7]]) as usize;
         if chunk_id == b"data" {
             return Some(pos + 8); // payload starts after the 8-byte chunk header
         }
@@ -320,8 +347,8 @@ fn concatenate_audio(parts: &[Vec<u8>]) -> Result<Vec<u8>, String> {
 
     if is_wav {
         // Parse the first part's RIFF structure to find where the data chunk begins.
-        let data_offset = find_wav_data_offset(&parts[0])
-            .ok_or("first WAV part has no data chunk")?;
+        let data_offset =
+            find_wav_data_offset(&parts[0]).ok_or("first WAV part has no data chunk")?;
         // `header` contains everything up to (but not including) the PCM payload,
         // including the 8-byte `data` chunk header whose size field we'll update.
         let mut header = parts[0][..data_offset].to_vec();
@@ -383,10 +410,9 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
         .and_then(Value::as_str)
         .ok_or("text is required")?;
 
-    let tts_url = host::config_read("tts_url")
-        .map_err(|_| "TTS URL not configured".to_string())?;
+    let tts_url = host::config_read("tts_url").map_err(|_| "TTS URL not configured".to_string())?;
     let tts_url = tts_url.trim_end_matches('/').to_string();
-    let api_key = host::config_read("tts_api_key").ok();
+    let api_key = host::secret_read("tts_api_key").ok();
     let model = host::config_read("tts_model").unwrap_or_else(|_| "tts-1".into());
     let voice = input
         .get("voice")
@@ -405,11 +431,9 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
         let part = synthesize_chunk(&tts_url, api_key, &model, &voice, chunk)?;
         let b64_len = (part.len() + 2) / 3 * 4;
         if total_b64_len + b64_len + overhead > MAX_RESULT_BYTES {
-            return Err(
-                "Synthesized audio exceeds the 1 MiB result limit. \
+            return Err("Synthesized audio exceeds the 1 MiB result limit. \
                  Try requesting a shorter response."
-                    .to_string(),
-            );
+                .to_string());
         }
         total_b64_len += b64_len;
         audio_parts.push(part);
@@ -418,18 +442,16 @@ fn synthesize_speech(input: &Value) -> Result<String, String> {
     let combined = concatenate_audio(&audio_parts)?;
     // Detect the audio format from magic bytes so the MIME type is correct
     // regardless of which TTS backend is configured.
-    let mime = if combined.len() >= 12
-        && combined.starts_with(b"RIFF")
-        && &combined[8..12] == b"WAVE"
-    {
-        "audio/wav"
-    } else if combined.starts_with(b"OggS") {
-        "audio/ogg"
-    } else if combined.starts_with(b"fLaC") {
-        "audio/flac"
-    } else {
-        "audio/mpeg" // MP3 and other compressed formats
-    };
+    let mime =
+        if combined.len() >= 12 && combined.starts_with(b"RIFF") && &combined[8..12] == b"WAVE" {
+            "audio/wav"
+        } else if combined.starts_with(b"OggS") {
+            "audio/ogg"
+        } else if combined.starts_with(b"fLaC") {
+            "audio/flac"
+        } else {
+            "audio/mpeg" // MP3 and other compressed formats
+        };
     let b64 = base64_encode(&combined);
     Ok(format!("data:{mime};base64,{b64}"))
 }

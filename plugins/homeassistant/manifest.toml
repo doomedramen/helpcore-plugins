@@ -1,9 +1,9 @@
 id = "homeassistant"
 name = "Home Assistant"
-version = "0.3.5"
+version = "0.3.7"
 description = "Control and monitor your Home Assistant smart home devices"
 tier = "wasm"
-permissions = ["outbound_http"]
+permissions = ["outbound_http", "read_secrets"]
 allowed_hosts = ["*"]
 
 brief = "Use when the user asks to control smart home devices — lights, thermostats, locks, covers, fans, or to trigger automations, scenes, or scripts."

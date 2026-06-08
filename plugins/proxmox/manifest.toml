@@ -1,9 +1,9 @@
 id = "proxmox"
 name = "Proxmox Insights"
-version = "0.1.5"
+version = "0.1.8"
 description = "Monitor Proxmox VE hosts, VMs, and LXC containers — CPU, memory, storage, hardware, and cluster health"
 tier = "wasm"
-permissions = ["outbound_http"]
+permissions = ["outbound_http", "read_secrets"]
 allowed_hosts = ["*"]
 
 brief = "Use when the user asks to manage their Proxmox VE server — checking node, VM, or container status, resource usage, storage, or cluster health."

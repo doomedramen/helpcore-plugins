@@ -11,6 +11,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -27,18 +28,18 @@ struct HomeAssistant;
 
 impl Guest for HomeAssistant {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
-            "homeassistant_list_entities"      => list_entities(&input),
-            "homeassistant_get_state"          => get_state(&input),
-            "homeassistant_call_service"       => call_service(&input),
-            "homeassistant_set_state"          => set_state(&input),
-            "homeassistant_list_automations"   => list_automations(&input),
+            "homeassistant_list_entities" => list_entities(&input),
+            "homeassistant_get_state" => get_state(&input),
+            "homeassistant_call_service" => call_service(&input),
+            "homeassistant_set_state" => set_state(&input),
+            "homeassistant_list_automations" => list_automations(&input),
             "homeassistant_trigger_automation" => trigger_automation(&input),
-            "homeassistant_set_timer"          => set_timer(&input),
-            "homeassistant_get_history"        => get_history(&input),
+            "homeassistant_set_timer" => set_timer(&input),
+            "homeassistant_get_history" => get_history(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
     }
@@ -54,11 +55,16 @@ struct Config {
 }
 
 fn load_config() -> Result<Config, String> {
-    let url = host::config_read("url")
-        .map_err(|_| "Home Assistant URL is not configured. Set it in the plugin settings.".to_string())?;
-    let token = host::config_read("token")
-        .map_err(|_| "Home Assistant access token is not configured. Set it in the plugin settings.".to_string())?;
-    Ok(Config { url: url.trim_end_matches('/').to_string(), token })
+    let url = host::config_read("url").map_err(|_| {
+        "Home Assistant URL is not configured. Set it in the plugin settings.".to_string()
+    })?;
+    let token = host::secret_read("token").map_err(|_| {
+        "Home Assistant access token is not configured. Set it in the plugin settings.".to_string()
+    })?;
+    Ok(Config {
+        url: url.trim_end_matches('/').to_string(),
+        token,
+    })
 }
 
 /// Reject values that could escape the intended API path via path traversal.
@@ -121,7 +127,10 @@ fn ha_request<T: for<'de> Deserialize<'de>>(
         return Err("Unauthorized — check your Long-Lived Access Token in plugin settings.".into());
     }
     if resp.status >= 400 {
-        return Err(format!("Home Assistant returned HTTP {}: {}", resp.status, resp.body));
+        return Err(format!(
+            "Home Assistant returned HTTP {}: {}",
+            resp.status, resp.body
+        ));
     }
 
     serde_json::from_str(&resp.body).map_err(|e| format!("failed to parse HA response: {e}"))
@@ -168,30 +177,43 @@ struct HaHistoryEntry {
 
 fn fetch_room_info(
     config: &Config,
-) -> Result<(HashMap<String, String>, HashMap<String, String>, HashMap<String, String>), String> {
+) -> Result<
+    (
+        HashMap<String, String>,
+        HashMap<String, String>,
+        HashMap<String, String>,
+    ),
+    String,
+> {
     // /api/config/area_registry is WebSocket-only; use the template API instead.
     let areas_tmpl = r#"{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set ns.r = ns.r + [{"area_id": a, "name": area_name(a)}] %}{% endfor %}{{ ns.r | to_json }}"#;
     let areas: Vec<AreaEntry> = ha_request(
-        config, "POST", "/template",
+        config,
+        "POST",
+        "/template",
         Some(serde_json::json!({"template": areas_tmpl})),
     )?;
 
-    let area_names: HashMap<String, String> = areas.iter()
+    let area_names: HashMap<String, String> = areas
+        .iter()
         .map(|a| (a.area_id.clone(), a.name.clone()))
         .collect();
-    let name_to_area_id: HashMap<String, String> = areas.into_iter()
-        .map(|a| (a.name, a.area_id))
-        .collect();
+    let name_to_area_id: HashMap<String, String> =
+        areas.into_iter().map(|a| (a.name, a.area_id)).collect();
 
     let entities_tmpl = r#"{% set ns = namespace(r=[]) %}{% for a in areas() %}{% for e in area_entities(a) %}{% set ns.r = ns.r + [{"entity_id": e, "area_id": a}] %}{% endfor %}{% endfor %}{{ ns.r | to_json }}"#;
     let registry: Vec<EntityRegistryEntry> = ha_request(
-        config, "POST", "/template",
+        config,
+        "POST",
+        "/template",
         Some(serde_json::json!({"template": entities_tmpl})),
     )?;
 
-    let entity_areas: HashMap<String, String> = registry.into_iter()
+    let entity_areas: HashMap<String, String> = registry
+        .into_iter()
         .filter_map(|e| {
-            e.area_id.and_then(|aid| area_names.get(&aid).cloned().map(|n| (e.entity_id, n)))
+            e.area_id
+                .and_then(|aid| area_names.get(&aid).cloned().map(|n| (e.entity_id, n)))
         })
         .collect();
 
@@ -206,7 +228,10 @@ fn list_entities(input: &Value) -> Result<String, String> {
 
     let room_warning: Option<String>;
     let (area_names, entity_areas, name_to_area_id) = match fetch_room_info(&config) {
-        Ok(info) => { room_warning = None; info }
+        Ok(info) => {
+            room_warning = None;
+            info
+        }
         Err(e) => {
             room_warning = Some(format!("\n\n(Note: room grouping unavailable — {})", e));
             (HashMap::new(), HashMap::new(), HashMap::new())
@@ -216,7 +241,8 @@ fn list_entities(input: &Value) -> Result<String, String> {
     let prefix: Option<String> = domain_filter.map(|d| format!("{d}."));
 
     // room_name -> (area_id, [(entity_id, friendly_name, state)])
-    let mut rooms: BTreeMap<String, (Option<String>, Vec<(String, String, String)>)> = BTreeMap::new();
+    let mut rooms: BTreeMap<String, (Option<String>, Vec<(String, String, String)>)> =
+        BTreeMap::new();
     let mut unknown: Vec<(String, String, String)> = Vec::new();
 
     for s in states {
@@ -226,23 +252,34 @@ fn list_entities(input: &Value) -> Result<String, String> {
             }
         }
 
-        let name = s.attributes.friendly_name.unwrap_or_else(|| s.entity_id.clone());
+        let name = s
+            .attributes
+            .friendly_name
+            .unwrap_or_else(|| s.entity_id.clone());
 
-        let room = entity_areas.get(&s.entity_id)
-            .cloned()
-            .or_else(|| s.attributes.area_id.as_ref().and_then(|aid| area_names.get(aid).cloned()));
+        let room = entity_areas.get(&s.entity_id).cloned().or_else(|| {
+            s.attributes
+                .area_id
+                .as_ref()
+                .and_then(|aid| area_names.get(aid).cloned())
+        });
 
-        let area_id = s.attributes.area_id.clone()
+        let area_id = s
+            .attributes
+            .area_id
+            .clone()
             .or_else(|| room.as_ref().and_then(|r| name_to_area_id.get(r).cloned()));
 
         match room {
             Some(r) => {
-                let entry = rooms.entry(r).or_insert_with(|| (area_id.clone(), Vec::new()));
+                let entry = rooms
+                    .entry(r)
+                    .or_insert_with(|| (area_id.clone(), Vec::new()));
                 if entry.0.is_none() {
                     entry.0 = area_id.clone();
                 }
                 entry.1.push((s.entity_id, name, s.state));
-            },
+            }
             None => unknown.push((s.entity_id, name, s.state)),
         }
     }
@@ -253,7 +290,9 @@ fn list_entities(input: &Value) -> Result<String, String> {
     unknown.sort_by(|a, b| a.1.cmp(&b.1));
 
     if rooms.is_empty() && unknown.is_empty() {
-        let domain_msg = domain_filter.map(|d| format!(" in domain '{d}'")).unwrap_or_default();
+        let domain_msg = domain_filter
+            .map(|d| format!(" in domain '{d}'"))
+            .unwrap_or_default();
         return Ok(format!("No entities found{domain_msg}."));
     }
 
@@ -336,14 +375,16 @@ fn call_service(input: &Value) -> Result<String, String> {
     if let Some(arr) = res.as_array() {
         if arr.is_empty() && input.get("entity_id").or(input.get("area_id")).is_some() {
             return Err(
-                "No entities were matched — the entity_id or area_id may be wrong. "
-                    .to_string()
+                "No entities were matched — the entity_id or area_id may be wrong. ".to_string()
                     + "Use homeassistant_list_entities to find valid entity_ids first.",
             );
         }
         let mut affected = Vec::new();
         for entry in arr {
-            let entity_id = entry.get("entity_id").and_then(Value::as_str).unwrap_or("?");
+            let entity_id = entry
+                .get("entity_id")
+                .and_then(Value::as_str)
+                .unwrap_or("?");
             let friendly = entry
                 .get("attributes")
                 .and_then(|a| a.get("friendly_name"))
@@ -489,30 +530,39 @@ fn resolve_service(
 
 fn set_state(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let entity_id = input.get("entity_id").and_then(Value::as_str)
+    let entity_id = input
+        .get("entity_id")
+        .and_then(Value::as_str)
         .ok_or("entity_id is required")?;
-    let attribute = input.get("attribute").and_then(Value::as_str)
+    let attribute = input
+        .get("attribute")
+        .and_then(Value::as_str)
         .ok_or("attribute is required")?;
     let value = input.get("value").ok_or("value is required")?;
 
     validate_url_path_segment(entity_id, "entity_id")?;
 
-    let domain = entity_id.split('.').next()
+    let domain = entity_id
+        .split('.')
+        .next()
         .ok_or("invalid entity_id: expected format domain.name")?;
 
     let (svc_domain, svc_name, mut service_data) = resolve_service(domain, attribute, value)?;
     service_data.insert("entity_id".into(), Value::String(entity_id.to_string()));
 
     let res: Value = ha_request(
-        &config, "POST",
+        &config,
+        "POST",
         &format!("/services/{svc_domain}/{svc_name}"),
         Some(Value::Object(service_data)),
     )?;
 
-    let display_name = res.as_array()
-        .and_then(|arr| arr.iter().find(|e| {
-            e.get("entity_id").and_then(Value::as_str) == Some(entity_id)
-        }))
+    let display_name = res
+        .as_array()
+        .and_then(|arr| {
+            arr.iter()
+                .find(|e| e.get("entity_id").and_then(Value::as_str) == Some(entity_id))
+        })
         .and_then(|e| e.get("attributes"))
         .and_then(|a| a.get("friendly_name"))
         .and_then(Value::as_str)
@@ -529,15 +579,18 @@ fn list_automations(_input: &Value) -> Result<String, String> {
     let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
 
     let mut automations: Vec<(String, String, String)> = Vec::new();
-    let mut scripts:     Vec<(String, String)>          = Vec::new();
-    let mut scenes:      Vec<(String, String)>          = Vec::new();
+    let mut scripts: Vec<(String, String)> = Vec::new();
+    let mut scenes: Vec<(String, String)> = Vec::new();
 
     for s in states {
-        let name = s.attributes.friendly_name.unwrap_or_else(|| s.entity_id.clone());
+        let name = s
+            .attributes
+            .friendly_name
+            .unwrap_or_else(|| s.entity_id.clone());
         match s.entity_id.split('.').next() {
             Some("automation") => automations.push((s.entity_id, name, s.state)),
-            Some("script")     => scripts.push((s.entity_id, name)),
-            Some("scene")      => scenes.push((s.entity_id, name)),
+            Some("script") => scripts.push((s.entity_id, name)),
+            Some("scene") => scenes.push((s.entity_id, name)),
             _ => {}
         }
     }
@@ -560,14 +613,18 @@ fn list_automations(_input: &Value) -> Result<String, String> {
         }
     }
     if !scripts.is_empty() {
-        if !result.is_empty() { result.push_str("\n\n"); }
+        if !result.is_empty() {
+            result.push_str("\n\n");
+        }
         result.push_str("Scripts:");
         for (entity_id, name) in &scripts {
             result.push_str(&format!("\n  {name} ({entity_id})"));
         }
     }
     if !scenes.is_empty() {
-        if !result.is_empty() { result.push_str("\n\n"); }
+        if !result.is_empty() {
+            result.push_str("\n\n");
+        }
         result.push_str("Scenes:");
         for (entity_id, name) in &scenes {
             result.push_str(&format!("\n  {name} ({entity_id})"));
@@ -581,25 +638,35 @@ fn list_automations(_input: &Value) -> Result<String, String> {
 
 fn trigger_automation(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let name = input.get("name").and_then(Value::as_str)
+    let name = input
+        .get("name")
+        .and_then(Value::as_str)
         .ok_or("name is required")?;
 
     let (entity_id, domain) = if name.contains('.') {
         validate_url_path_segment(name, "name")?;
-        let domain = name.split('.').next()
-            .ok_or("invalid entity_id")?.to_string();
+        let domain = name
+            .split('.')
+            .next()
+            .ok_or("invalid entity_id")?
+            .to_string();
         (name.to_string(), domain)
     } else {
         let states: Vec<HaStateBrief> = ha_request(&config, "GET", "/states", None)?;
         let needle = name.to_lowercase();
 
-        let matched = states.into_iter()
-            .filter(|s| matches!(
-                s.entity_id.split('.').next(),
-                Some("automation" | "script" | "scene")
-            ))
+        let matched = states
+            .into_iter()
+            .filter(|s| {
+                matches!(
+                    s.entity_id.split('.').next(),
+                    Some("automation" | "script" | "scene")
+                )
+            })
             .find(|s| {
-                s.attributes.friendly_name.as_ref()
+                s.attributes
+                    .friendly_name
+                    .as_ref()
                     .map(|n| n.to_lowercase().contains(&needle))
                     .unwrap_or(false)
                     || s.entity_id.to_lowercase().contains(&needle)
@@ -610,31 +677,40 @@ fn trigger_automation(input: &Value) -> Result<String, String> {
                 let domain = s.entity_id.split('.').next().unwrap_or("").to_string();
                 (s.entity_id, domain)
             }
-            None => return Err(format!(
-                "No automation, script, or scene found matching '{name}'. \
+            None => {
+                return Err(format!(
+                    "No automation, script, or scene found matching '{name}'. \
                 Use homeassistant_list_automations to see available options."
-            )),
+                ))
+            }
         }
     };
 
     let (svc_domain, svc_name) = match domain.as_str() {
         "automation" => ("automation", "trigger"),
-        "script"     => ("script", "turn_on"),
-        "scene"      => ("scene", "turn_on"),
-        other        => return Err(format!("Cannot trigger entity of domain '{other}'")),
+        "script" => ("script", "turn_on"),
+        "scene" => ("scene", "turn_on"),
+        other => return Err(format!("Cannot trigger entity of domain '{other}'")),
     };
 
     let mut body = serde_json::json!({"entity_id": entity_id});
     if domain == "automation" {
-        body.as_object_mut().unwrap().insert("skip_condition".into(), Value::Bool(true));
+        body.as_object_mut()
+            .unwrap()
+            .insert("skip_condition".into(), Value::Bool(true));
     }
 
-    let _: Value = ha_request(&config, "POST", &format!("/services/{svc_domain}/{svc_name}"), Some(body))?;
+    let _: Value = ha_request(
+        &config,
+        "POST",
+        &format!("/services/{svc_domain}/{svc_name}"),
+        Some(body),
+    )?;
 
     let verb = match (svc_domain, svc_name) {
-        ("scene", _)      => "Activated scene",
+        ("scene", _) => "Activated scene",
         ("automation", _) => "Triggered automation",
-        _                 => "Started script",
+        _ => "Started script",
     };
     Ok(format!("{verb}: {entity_id}."))
 }
@@ -650,20 +726,28 @@ fn parse_duration(s: &str) -> Result<u64, String> {
         while chars.peek().is_some_and(|c| c.is_whitespace() || *c == ',') {
             chars.next();
         }
-        if chars.peek().is_none() { break; }
+        if chars.peek().is_none() {
+            break;
+        }
 
         let mut digits = String::new();
         while chars.peek().is_some_and(|c| c.is_ascii_digit()) {
             digits.push(chars.next().unwrap());
         }
         if digits.is_empty() {
-            while chars.peek().is_some_and(|c| c.is_alphabetic()) { chars.next(); }
+            while chars.peek().is_some_and(|c| c.is_alphabetic()) {
+                chars.next();
+            }
             continue;
         }
 
-        let n: u64 = digits.parse().map_err(|_| format!("invalid number '{digits}'"))?;
+        let n: u64 = digits
+            .parse()
+            .map_err(|_| format!("invalid number '{digits}'"))?;
 
-        while chars.peek().is_some_and(|c| c.is_whitespace()) { chars.next(); }
+        while chars.peek().is_some_and(|c| c.is_whitespace()) {
+            chars.next();
+        }
 
         let mut unit = String::new();
         while chars.peek().is_some_and(|c| c.is_alphabetic()) {
@@ -671,20 +755,24 @@ fn parse_duration(s: &str) -> Result<u64, String> {
         }
 
         let mult = match unit.as_str() {
-            "h" | "hr" | "hrs" | "hour" | "hours"       => 3600u64,
+            "h" | "hr" | "hrs" | "hour" | "hours" => 3600u64,
             "m" | "min" | "mins" | "minute" | "minutes" => 60,
             "s" | "sec" | "secs" | "second" | "seconds" => 1,
-            ""                                           => 1,
-            other => return Err(format!(
-                "Unknown duration unit '{other}'. Use h, m, or s — e.g. '30m', '1h30m', '90s'."
-            )),
+            "" => 1,
+            other => {
+                return Err(format!(
+                    "Unknown duration unit '{other}'. Use h, m, or s — e.g. '30m', '1h30m', '90s'."
+                ))
+            }
         };
 
         total = total.saturating_add(n.saturating_mul(mult));
     }
 
     if total == 0 {
-        return Err("Duration must be greater than 0. Examples: '30m', '1h', '90s', '1h30m'.".to_string());
+        return Err(
+            "Duration must be greater than 0. Examples: '30m', '1h', '90s', '1h30m'.".to_string(),
+        );
     }
     Ok(total)
 }
@@ -696,18 +784,22 @@ fn format_duration(secs: u64) -> String {
     match (h, m, s) {
         (h, 0, 0) if h > 0 => format!("{h}h"),
         (0, m, 0) if m > 0 => format!("{m}m"),
-        (0, 0, s)           => format!("{s}s"),
-        (h, m, 0)           => format!("{h}h {m}m"),
-        (0, m, s)           => format!("{m}m {s}s"),
-        (h, m, s)           => format!("{h}h {m}m {s}s"),
+        (0, 0, s) => format!("{s}s"),
+        (h, m, 0) => format!("{h}h {m}m"),
+        (0, m, s) => format!("{m}m {s}s"),
+        (h, m, s) => format!("{h}h {m}m {s}s"),
     }
 }
 
 fn set_timer(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let entity_id = input.get("entity_id").and_then(Value::as_str)
+    let entity_id = input
+        .get("entity_id")
+        .and_then(Value::as_str)
         .ok_or("entity_id is required")?;
-    let duration_str = input.get("duration").and_then(Value::as_str)
+    let duration_str = input
+        .get("duration")
+        .and_then(Value::as_str)
         .ok_or("duration is required")?;
 
     validate_url_path_segment(entity_id, "entity_id")?;
@@ -716,7 +808,9 @@ fn set_timer(input: &Value) -> Result<String, String> {
     let display = format_duration(delay_seconds);
 
     let _: Value = ha_request(
-        &config, "POST", "/events/plugin_set_timer",
+        &config,
+        "POST",
+        "/events/plugin_set_timer",
         Some(serde_json::json!({
             "entity_id": entity_id,
             "delay_seconds": delay_seconds,
@@ -728,16 +822,22 @@ fn set_timer(input: &Value) -> Result<String, String> {
         • Action 1: Delay — {{ trigger.event.data.delay_seconds }} seconds\n\
         • Action 2: Service = homeassistant.turn_off, Entity = {{ trigger.event.data.entity_id }}";
 
-    Ok(format!("Timer set — {entity_id} will turn off in {display}.\n\n{setup}"))
+    Ok(format!(
+        "Timer set — {entity_id} will turn off in {display}.\n\n{setup}"
+    ))
 }
 
 // ── get_history ───────────────────────────────────────────────────────────────
 
 fn get_history(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let entity_id = input.get("entity_id").and_then(Value::as_str)
+    let entity_id = input
+        .get("entity_id")
+        .and_then(Value::as_str)
         .ok_or("entity_id is required")?;
-    let hours_back = input.get("hours_back").and_then(Value::as_f64)
+    let hours_back = input
+        .get("hours_back")
+        .and_then(Value::as_f64)
         .unwrap_or(24.0)
         .clamp(0.5, 168.0);
 
@@ -745,11 +845,14 @@ fn get_history(input: &Value) -> Result<String, String> {
 
     let hours = hours_back.ceil() as u64;
     // Wrap in JSON quotes so ha_request can deserialise the rendered string as a Rust String.
-    let tmpl = format!(
-        r#""{{{{ (now() - timedelta(hours={hours})).strftime('%Y-%m-%dT%H:%M:%S') }}}}""#
-    );
-    let start_time: String = ha_request(&config, "POST", "/template",
-        Some(serde_json::json!({"template": tmpl})))?;
+    let tmpl =
+        format!(r#""{{{{ (now() - timedelta(hours={hours})).strftime('%Y-%m-%dT%H:%M:%S') }}}}""#);
+    let start_time: String = ha_request(
+        &config,
+        "POST",
+        "/template",
+        Some(serde_json::json!({"template": tmpl})),
+    )?;
 
     let path = format!(
         "/history/period/{}?filter_entity_id={}&minimal_response",
@@ -766,7 +869,9 @@ fn get_history(input: &Value) -> Result<String, String> {
     };
 
     if entries.is_empty() {
-        return Ok(format!("No history found for {entity_id} in the last {hours_display}."));
+        return Ok(format!(
+            "No history found for {entity_id} in the last {hours_display}."
+        ));
     }
 
     let mut result = format!("History for {entity_id} (last {hours_display}):");
@@ -776,8 +881,10 @@ fn get_history(input: &Value) -> Result<String, String> {
         if prev_state.as_deref() == Some(entry.state.as_str()) {
             continue;
         }
-        let time = entry.last_changed
-            .split('T').nth(1)
+        let time = entry
+            .last_changed
+            .split('T')
+            .nth(1)
             .and_then(|t| t.get(..5))
             .unwrap_or(&entry.last_changed);
         result.push_str(&format!("\n  {time} → {}", entry.state));
@@ -827,9 +934,9 @@ mod tests {
 
     #[test]
     fn duration_unit_suffixes() {
-        assert_eq!(parse_duration("30m"),  Ok(1800));
-        assert_eq!(parse_duration("1h"),   Ok(3600));
-        assert_eq!(parse_duration("90s"),  Ok(90));
+        assert_eq!(parse_duration("30m"), Ok(1800));
+        assert_eq!(parse_duration("1h"), Ok(3600));
+        assert_eq!(parse_duration("90s"), Ok(90));
         assert_eq!(parse_duration("1h30m"), Ok(5400));
         assert_eq!(parse_duration("2h15m30s"), Ok(8130));
     }
@@ -837,31 +944,31 @@ mod tests {
     #[test]
     fn duration_word_units() {
         assert_eq!(parse_duration("30 minutes"), Ok(1800));
-        assert_eq!(parse_duration("2 hours"),    Ok(7200));
+        assert_eq!(parse_duration("2 hours"), Ok(7200));
         assert_eq!(parse_duration("45 seconds"), Ok(45));
         assert_eq!(parse_duration("1 hour 30 minutes"), Ok(5400));
     }
 
     #[test]
     fn duration_abbreviations() {
-        assert_eq!(parse_duration("30min"),  Ok(1800));
-        assert_eq!(parse_duration("2hr"),    Ok(7200));
-        assert_eq!(parse_duration("10sec"),  Ok(10));
-        assert_eq!(parse_duration("2hrs"),   Ok(7200));
+        assert_eq!(parse_duration("30min"), Ok(1800));
+        assert_eq!(parse_duration("2hr"), Ok(7200));
+        assert_eq!(parse_duration("10sec"), Ok(10));
+        assert_eq!(parse_duration("2hrs"), Ok(7200));
         assert_eq!(parse_duration("30mins"), Ok(1800));
     }
 
     #[test]
     fn duration_bare_number_is_seconds() {
-        assert_eq!(parse_duration("60"),  Ok(60));
+        assert_eq!(parse_duration("60"), Ok(60));
         assert_eq!(parse_duration("120"), Ok(120));
     }
 
     #[test]
     fn duration_case_insensitive() {
-        assert_eq!(parse_duration("30M"),       Ok(1800));
-        assert_eq!(parse_duration("1H"),        Ok(3600));
-        assert_eq!(parse_duration("1 HOUR"),    Ok(3600));
+        assert_eq!(parse_duration("30M"), Ok(1800));
+        assert_eq!(parse_duration("1H"), Ok(3600));
+        assert_eq!(parse_duration("1 HOUR"), Ok(3600));
         assert_eq!(parse_duration("30 MINUTES"), Ok(1800));
     }
 
@@ -887,26 +994,34 @@ mod tests {
 
     #[test]
     fn format_round_values() {
-        assert_eq!(format_duration(3600),  "1h");
-        assert_eq!(format_duration(1800),  "30m");
-        assert_eq!(format_duration(90),    "1m 30s");
-        assert_eq!(format_duration(45),    "45s");
-        assert_eq!(format_duration(5400),  "1h 30m");
-        assert_eq!(format_duration(8130),  "2h 15m 30s");
+        assert_eq!(format_duration(3600), "1h");
+        assert_eq!(format_duration(1800), "30m");
+        assert_eq!(format_duration(90), "1m 30s");
+        assert_eq!(format_duration(45), "45s");
+        assert_eq!(format_duration(5400), "1h 30m");
+        assert_eq!(format_duration(8130), "2h 15m 30s");
     }
 
     #[test]
     fn format_parse_roundtrip() {
         for secs in [30u64, 60, 90, 1800, 3600, 5400, 7261] {
             let s = format_duration(secs);
-            assert_eq!(parse_duration(&s), Ok(secs), "roundtrip failed for {secs}s → {s:?}");
+            assert_eq!(
+                parse_duration(&s),
+                Ok(secs),
+                "roundtrip failed for {secs}s → {s:?}"
+            );
         }
     }
 
     // ── resolve_service ───────────────────────────────────────────────────────
 
-    fn v_num(n: f64) -> Value { Value::from(n) }
-    fn v_str(s: &str) -> Value { Value::String(s.to_string()) }
+    fn v_num(n: f64) -> Value {
+        Value::from(n)
+    }
+    fn v_str(s: &str) -> Value {
+        Value::String(s.to_string())
+    }
 
     #[test]
     fn light_brightness() {

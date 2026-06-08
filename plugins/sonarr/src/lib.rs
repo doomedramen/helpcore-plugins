@@ -10,6 +10,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -26,8 +27,8 @@ struct Sonarr;
 
 impl Guest for Sonarr {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
             "sonarr_search" => search(&input),
@@ -52,8 +53,9 @@ fn load_config() -> Result<Config, String> {
     let url = host::config_read("url")
         .map_err(|_| "Sonarr URL is not configured. Set it in the plugin settings.".to_string())?;
     let base_url = url.trim_end_matches('/').to_string();
-    let api_key = host::config_read("api_key")
-        .map_err(|_| "Sonarr API key is not configured. Set it in the plugin settings.".to_string())?;
+    let api_key = host::secret_read("api_key").map_err(|_| {
+        "Sonarr API key is not configured. Set it in the plugin settings.".to_string()
+    })?;
     Ok(Config { base_url, api_key })
 }
 
@@ -81,7 +83,11 @@ fn days_in_month(year: u32, month: u32) -> u32 {
         4 | 6 | 9 | 11 => 30,
         2 => {
             let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-            if leap { 29 } else { 28 }
+            if leap {
+                29
+            } else {
+                28
+            }
         }
         _ => 30,
     }
@@ -133,11 +139,17 @@ fn http_get(config: &Config, path: &str) -> Result<(u16, String), String> {
     let mut headers = serde_json::Map::new();
     headers.insert("Accept".into(), Value::String("application/json".into()));
 
-    let req = HttpRequest { method: "GET", url, headers, body: None };
+    let req = HttpRequest {
+        method: "GET",
+        url,
+        headers,
+        body: None,
+    };
     let req_json = serde_json::to_string(&req).map_err(|e| e.to_string())?;
-    let resp_json = host::http_request(&req_json).map_err(|e| format!("HTTP request failed: {e}"))?;
-    let resp: HttpResponse =
-        serde_json::from_str(&resp_json).map_err(|e| format!("failed to parse HTTP response: {e}"))?;
+    let resp_json =
+        host::http_request(&req_json).map_err(|e| format!("HTTP request failed: {e}"))?;
+    let resp: HttpResponse = serde_json::from_str(&resp_json)
+        .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
     Ok((resp.status, resp.body))
 }
 
@@ -145,14 +157,23 @@ fn http_post_json(config: &Config, path: &str, body: &Value) -> Result<(u16, Str
     let url = format!("{}/api/v3{}", config.base_url, path);
     let mut headers = serde_json::Map::new();
     headers.insert("Accept".into(), Value::String("application/json".into()));
-    headers.insert("Content-Type".into(), Value::String("application/json".into()));
+    headers.insert(
+        "Content-Type".into(),
+        Value::String("application/json".into()),
+    );
 
     let body_str = serde_json::to_string(body).map_err(|e| e.to_string())?;
-    let req = HttpRequest { method: "POST", url, headers, body: Some(body_str) };
+    let req = HttpRequest {
+        method: "POST",
+        url,
+        headers,
+        body: Some(body_str),
+    };
     let req_json = serde_json::to_string(&req).map_err(|e| e.to_string())?;
-    let resp_json = host::http_request(&req_json).map_err(|e| format!("HTTP request failed: {e}"))?;
-    let resp: HttpResponse =
-        serde_json::from_str(&resp_json).map_err(|e| format!("failed to parse HTTP response: {e}"))?;
+    let resp_json =
+        host::http_request(&req_json).map_err(|e| format!("HTTP request failed: {e}"))?;
+    let resp: HttpResponse = serde_json::from_str(&resp_json)
+        .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
     Ok((resp.status, resp.body))
 }
 
@@ -166,13 +187,21 @@ fn api_key_suffix(config: &Config) -> String {
 
 fn search(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let query = input.get("query").and_then(Value::as_str)
+    let query = input
+        .get("query")
+        .and_then(Value::as_str)
         .ok_or("query is required")?;
     let suffix = api_key_suffix(&config);
-    let (status, body) = http_get(&config, &format!("/series/lookup?term={}{}", url_encode(query), suffix))?;
+    let (status, body) = http_get(
+        &config,
+        &format!("/series/lookup?term={}{}", url_encode(query), suffix),
+    )?;
 
     if status >= 400 {
-        return Err(format!("Sonarr returned HTTP {status}: {}", truncate(&body, 300)));
+        return Err(format!(
+            "Sonarr returned HTTP {status}: {}",
+            truncate(&body, 300)
+        ));
     }
 
     let results: Vec<Value> =
@@ -186,7 +215,11 @@ fn search(input: &Value) -> Result<String, String> {
     let mut out = format!("Sonarr search: {query}\n");
     for (i, show) in results.iter().take(limit).enumerate() {
         let title = show.get("title").and_then(Value::as_str).unwrap_or("?");
-        let year = show.get("year").and_then(Value::as_u64).map(|y| y.to_string()).unwrap_or_else(|| "?".into());
+        let year = show
+            .get("year")
+            .and_then(Value::as_u64)
+            .map(|y| y.to_string())
+            .unwrap_or_else(|| "?".into());
         let tvdb_id = show.get("tvdbId").and_then(Value::as_u64).unwrap_or(0);
         let overview = show.get("overview").and_then(Value::as_str).unwrap_or("");
         let network = show.get("network").and_then(Value::as_str).unwrap_or("?");
@@ -201,9 +234,13 @@ fn search(input: &Value) -> Result<String, String> {
 
         out.push_str(&format!(
             "\n  {}. {} ({})  [tvdbId: {tvdb_id}]",
-            i + 1, title, year
+            i + 1,
+            title,
+            year
         ));
-        out.push_str(&format!("\n     Network: {network}  Status: {status}  Seasons: {season_count}"));
+        out.push_str(&format!(
+            "\n     Network: {network}  Status: {status}  Seasons: {season_count}"
+        ));
         if !overview_short.is_empty() {
             out.push_str(&format!("\n     {}", overview_short));
         }
@@ -216,11 +253,18 @@ fn search(input: &Value) -> Result<String, String> {
 
 fn add(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let tvdb_id = input.get("tvdb_id").and_then(Value::as_u64)
+    let tvdb_id = input
+        .get("tvdb_id")
+        .and_then(Value::as_u64)
         .ok_or("tvdb_id is required")?;
-    let title = input.get("title").and_then(Value::as_str)
+    let title = input
+        .get("title")
+        .and_then(Value::as_str)
         .ok_or("title is required")?;
-    let monitored = input.get("monitored").and_then(Value::as_bool).unwrap_or(true);
+    let monitored = input
+        .get("monitored")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     let suffix = api_key_suffix(&config);
 
     // Lookup full series details
@@ -229,7 +273,10 @@ fn add(input: &Value) -> Result<String, String> {
         &format!("/series/lookup?term=tvdb:{tvdb_id}{}", suffix),
     )?;
     if status >= 400 {
-        return Err(format!("Series lookup failed (HTTP {status}): {}", truncate(&lookup_body, 300)));
+        return Err(format!(
+            "Series lookup failed (HTTP {status}): {}",
+            truncate(&lookup_body, 300)
+        ));
     }
     let results: Vec<Value> = serde_json::from_str(&lookup_body)
         .map_err(|e| format!("failed to parse lookup response: {e}"))?;
@@ -240,30 +287,37 @@ fn add(input: &Value) -> Result<String, String> {
     let series_title = series.get("title").and_then(Value::as_str).unwrap_or(title);
 
     // Get root folder
-    let (rf_status, rf_body) = http_get(&config, &format!("/rootfolder{}", api_key_suffix(&config)))?;
+    let (rf_status, rf_body) =
+        http_get(&config, &format!("/rootfolder{}", api_key_suffix(&config)))?;
     if rf_status >= 400 {
         return Err(format!("Failed to get root folders (HTTP {rf_status})"));
     }
-    let root_folders: Vec<Value> = serde_json::from_str(&rf_body)
-        .map_err(|e| format!("failed to parse root folders: {e}"))?;
-    let root_folder = root_folders.first()
+    let root_folders: Vec<Value> =
+        serde_json::from_str(&rf_body).map_err(|e| format!("failed to parse root folders: {e}"))?;
+    let root_folder = root_folders
+        .first()
         .and_then(|f| f.get("path").and_then(Value::as_str))
         .ok_or("No root folder configured. Set one in Sonarr → Settings → Media Management.")?;
 
     // Get quality profile (from input or first available)
-    let quality_profile_id = if let Some(qp_id) = input.get("quality_profile_id").and_then(Value::as_u64) {
-        qp_id
-    } else {
-        let (qp_status, qp_body) = http_get(&config, &format!("/qualityprofile{}", api_key_suffix(&config)))?;
-        if qp_status >= 400 {
-            return Err(format!("Failed to get quality profiles (HTTP {qp_status})"));
-        }
-        let profiles: Vec<Value> = serde_json::from_str(&qp_body)
-            .map_err(|e| format!("failed to parse quality profiles: {e}"))?;
-        profiles.first()
-            .and_then(|p| p.get("id").and_then(Value::as_u64))
-            .ok_or("No quality profile found in Sonarr.")?
-    };
+    let quality_profile_id =
+        if let Some(qp_id) = input.get("quality_profile_id").and_then(Value::as_u64) {
+            qp_id
+        } else {
+            let (qp_status, qp_body) = http_get(
+                &config,
+                &format!("/qualityprofile{}", api_key_suffix(&config)),
+            )?;
+            if qp_status >= 400 {
+                return Err(format!("Failed to get quality profiles (HTTP {qp_status})"));
+            }
+            let profiles: Vec<Value> = serde_json::from_str(&qp_body)
+                .map_err(|e| format!("failed to parse quality profiles: {e}"))?;
+            profiles
+                .first()
+                .and_then(|p| p.get("id").and_then(Value::as_u64))
+                .ok_or("No quality profile found in Sonarr.")?
+        };
 
     // Build add body
     let add_options = serde_json::json!({ "searchForMissingEpisodes": true });
@@ -277,7 +331,11 @@ fn add(input: &Value) -> Result<String, String> {
         "addOptions": add_options,
     });
 
-    let (add_status, add_body) = http_post_json(&config, &format!("/series{}", api_key_suffix(&config)), &body)?;
+    let (add_status, add_body) = http_post_json(
+        &config,
+        &format!("/series{}", api_key_suffix(&config)),
+        &body,
+    )?;
     if add_status >= 400 {
         let msg = match add_status {
             400 => {
@@ -285,12 +343,19 @@ fn add(input: &Value) -> Result<String, String> {
                     .ok()
                     .map(|v| {
                         v.iter()
-                            .filter_map(|e| e.get("errorMessage").and_then(Value::as_str).map(String::from))
+                            .filter_map(|e| {
+                                e.get("errorMessage")
+                                    .and_then(Value::as_str)
+                                    .map(String::from)
+                            })
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
-                if errs.is_empty() { format!("Bad request: {}", truncate(&add_body, 200)) }
-                else { errs.join("; ") }
+                if errs.is_empty() {
+                    format!("Bad request: {}", truncate(&add_body, 200))
+                } else {
+                    errs.join("; ")
+                }
             }
             409 => "This series may already be added to Sonarr.".to_string(),
             _ => format!("HTTP {add_status}: {}", truncate(&add_body, 200)),
@@ -317,7 +382,10 @@ fn calendar(input: &Value) -> Result<String, String> {
         &format!("/calendar?start={start}&end={end}{suffix}"),
     )?;
     if status >= 400 {
-        return Err(format!("Calendar lookup failed (HTTP {status}): {}", truncate(&body, 300)));
+        return Err(format!(
+            "Calendar lookup failed (HTTP {status}): {}",
+            truncate(&body, 300)
+        ));
     }
 
     let episodes: Vec<Value> = serde_json::from_str(&body)
@@ -329,7 +397,11 @@ fn calendar(input: &Value) -> Result<String, String> {
 
     let mut out = format!("Sonarr Calendar — next {days} days:\n");
     for ep in &episodes {
-        let series_title = ep.get("series").and_then(|s| s.get("title")).and_then(Value::as_str).unwrap_or("?");
+        let series_title = ep
+            .get("series")
+            .and_then(|s| s.get("title"))
+            .and_then(Value::as_str)
+            .unwrap_or("?");
         let ep_title = ep.get("title").and_then(Value::as_str).unwrap_or("?");
         let season = ep.get("seasonNumber").and_then(Value::as_u64).unwrap_or(0);
         let episode = ep.get("episodeNumber").and_then(Value::as_u64).unwrap_or(0);
@@ -357,13 +429,17 @@ fn wanted(input: &Value) -> Result<String, String> {
         &format!("/wanted/missing?sortKey=airDateUtc&pageSize={count}{suffix}"),
     )?;
     if status >= 400 {
-        return Err(format!("Wanted lookup failed (HTTP {status}): {}", truncate(&body, 300)));
+        return Err(format!(
+            "Wanted lookup failed (HTTP {status}): {}",
+            truncate(&body, 300)
+        ));
     }
 
-    let result: Value = serde_json::from_str(&body)
-        .map_err(|e| format!("failed to parse wanted response: {e}"))?;
+    let result: Value =
+        serde_json::from_str(&body).map_err(|e| format!("failed to parse wanted response: {e}"))?;
 
-    let episodes = result.get("records")
+    let episodes = result
+        .get("records")
         .and_then(Value::as_array)
         .ok_or("unexpected response format")?;
 
@@ -373,7 +449,11 @@ fn wanted(input: &Value) -> Result<String, String> {
 
     let mut out = format!("Sonarr Wanted — {} missing episode(s):\n", episodes.len());
     for ep in episodes {
-        let series_title = ep.get("series").and_then(|s| s.get("title")).and_then(Value::as_str).unwrap_or("?");
+        let series_title = ep
+            .get("series")
+            .and_then(|s| s.get("title"))
+            .and_then(Value::as_str)
+            .unwrap_or("?");
         let ep_title = ep.get("title").and_then(Value::as_str).unwrap_or("?");
         let season = ep.get("seasonNumber").and_then(Value::as_u64).unwrap_or(0);
         let episode = ep.get("episodeNumber").and_then(Value::as_u64).unwrap_or(0);
@@ -389,5 +469,9 @@ fn wanted(input: &Value) -> Result<String, String> {
 // ── Utility ───────────────────────────────────────────────────────────────────
 
 fn truncate(s: &str, max: usize) -> &str {
-    if s.len() <= max { s } else { &s[..max] }
+    if s.len() <= max {
+        s
+    } else {
+        &s[..max]
+    }
 }

@@ -1,7 +1,7 @@
 [workspace]
 [package]
 name = "plex"
-version = "0.1.2"
+version = "0.1.4"
 edition = "2021"
 [lib]
 crate-type = ["cdylib"]

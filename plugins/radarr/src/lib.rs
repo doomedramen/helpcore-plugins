@@ -10,6 +10,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -26,8 +27,8 @@ struct Radarr;
 
 impl Guest for Radarr {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
             "radarr_search" => search(&input),
@@ -68,8 +69,9 @@ fn load_config() -> Result<Config, String> {
     let url = host::config_read("url")
         .map_err(|_| "Radarr URL is not configured. Set it in the plugin settings.".to_string())?;
     let url = url.trim_end_matches('/').to_string();
-    let api_key = host::config_read("api_key")
-        .map_err(|_| "Radarr API key is not configured. Set it in the plugin settings.".to_string())?;
+    let api_key = host::secret_read("api_key").map_err(|_| {
+        "Radarr API key is not configured. Set it in the plugin settings.".to_string()
+    })?;
     Ok(Config { url, api_key })
 }
 
@@ -101,7 +103,10 @@ fn http_get(config: &Config, path: &str) -> Result<(u16, String), String> {
 
 fn http_post_json(config: &Config, path: &str, body: &Value) -> Result<(u16, String), String> {
     let mut headers = auth_headers(&config.api_key);
-    headers.insert("Content-Type".into(), Value::String("application/json".into()));
+    headers.insert(
+        "Content-Type".into(),
+        Value::String("application/json".into()),
+    );
 
     let body_str = serde_json::to_string(body).map_err(|e| e.to_string())?;
     let req = HttpRequest {
@@ -114,8 +119,8 @@ fn http_post_json(config: &Config, path: &str, body: &Value) -> Result<(u16, Str
 }
 
 fn execute(req: HttpRequest) -> Result<(u16, String), String> {
-    let req_json = serde_json::to_string(&req)
-        .map_err(|e| format!("failed to serialize request: {e}"))?;
+    let req_json =
+        serde_json::to_string(&req).map_err(|e| format!("failed to serialize request: {e}"))?;
     let resp_json = host::http_request(&req_json)?;
     let resp: HttpResponse = serde_json::from_str(&resp_json)
         .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
@@ -219,7 +224,9 @@ fn search(input: &Value) -> Result<String, String> {
     let path = format!("movie/lookup?term={}", url_encode(query));
     let data = api_get(&config, &path)?;
 
-    let results = data.as_array().ok_or("unexpected response: expected array")?;
+    let results = data
+        .as_array()
+        .ok_or("unexpected response: expected array")?;
     if results.is_empty() {
         return Ok(format!("No movies found for \"{query}\"."));
     }
@@ -228,14 +235,14 @@ fn search(input: &Value) -> Result<String, String> {
     let mut out = format!("Search results for \"{query}\":");
     for item in results.iter().take(limit) {
         let title = str_or(item, "title", "?");
-        let year = item.get("year").and_then(Value::as_u64).map_or_else(
-            || "—".into(),
-            |y| y.to_string(),
-        );
-        let tmdb_id = item.get("tmdbId").and_then(Value::as_u64).map_or_else(
-            || "—".into(),
-            |id| id.to_string(),
-        );
+        let year = item
+            .get("year")
+            .and_then(Value::as_u64)
+            .map_or_else(|| "—".into(), |y| y.to_string());
+        let tmdb_id = item
+            .get("tmdbId")
+            .and_then(Value::as_u64)
+            .map_or_else(|| "—".into(), |id| id.to_string());
         let in_cinemas = str_or(item, "inCinemas", "?");
         let status = item
             .get("status")
@@ -248,7 +255,10 @@ fn search(input: &Value) -> Result<String, String> {
         ));
     }
     if results.len() > 8 {
-        out.push_str(&format!("\n\n... and {} more. Refine your search.", results.len() - 8));
+        out.push_str(&format!(
+            "\n\n... and {} more. Refine your search.",
+            results.len() - 8
+        ));
     }
 
     Ok(out)
@@ -283,8 +293,12 @@ fn add_movie(input: &Value) -> Result<String, String> {
         Some(id) => id,
         None => {
             let profiles = api_get(&config, "qualityprofile")?;
-            let arr = profiles.as_array().ok_or("failed to load quality profiles")?;
-            let first = arr.first().ok_or("no quality profiles configured in Radarr")?;
+            let arr = profiles
+                .as_array()
+                .ok_or("failed to load quality profiles")?;
+            let first = arr
+                .first()
+                .ok_or("no quality profiles configured in Radarr")?;
             first
                 .get("id")
                 .and_then(Value::as_u64)
@@ -323,7 +337,11 @@ fn add_movie(input: &Value) -> Result<String, String> {
 
     api_post(&config, "movie", &body)?;
 
-    let mon_str = if monitored { "monitored" } else { "unmonitored" };
+    let mon_str = if monitored {
+        "monitored"
+    } else {
+        "unmonitored"
+    };
     Ok(format!(
         "Added \"{title}\" ({year}) to Radarr ({mon_str}).\nQuality Profile ID: {quality_profile_id}\nRoot Folder: {root_folder_path}"
     ))
@@ -420,17 +438,19 @@ fn quality_profiles(_input: &Value) -> Result<String, String> {
     let config = load_config()?;
     let data = api_get(&config, "qualityprofile")?;
 
-    let profiles = data.as_array().ok_or("unexpected quality profile response")?;
+    let profiles = data
+        .as_array()
+        .ok_or("unexpected quality profile response")?;
     if profiles.is_empty() {
         return Ok("No quality profiles configured.".into());
     }
 
     let mut out = "Quality Profiles:".to_string();
     for p in profiles {
-        let id = p.get("id").and_then(Value::as_u64).map_or_else(
-            || "?".into(),
-            |id| id.to_string(),
-        );
+        let id = p
+            .get("id")
+            .and_then(Value::as_u64)
+            .map_or_else(|| "?".into(), |id| id.to_string());
         let name = str_or(p, "name", "Unknown");
         out.push_str(&format!("\n  {id}: {name}"));
     }

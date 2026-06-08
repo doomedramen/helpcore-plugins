@@ -10,6 +10,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -26,18 +27,18 @@ struct Proxmox;
 
 impl Guest for Proxmox {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
-            "proxmox_list_nodes"            => list_nodes(&input),
-            "proxmox_get_node_status"       => get_node_status(&input),
-            "proxmox_list_guests"           => list_guests(&input),
-            "proxmox_get_guest_status"      => get_guest_status(&input),
-            "proxmox_get_guest_config"      => get_guest_config(&input),
+            "proxmox_list_nodes" => list_nodes(&input),
+            "proxmox_get_node_status" => get_node_status(&input),
+            "proxmox_list_guests" => list_guests(&input),
+            "proxmox_get_guest_status" => get_guest_status(&input),
+            "proxmox_get_guest_config" => get_guest_config(&input),
             "proxmox_get_cluster_resources" => get_cluster_resources(&input),
-            "proxmox_get_storage"           => get_storage(&input),
-            "proxmox_get_version"           => get_version(&input),
+            "proxmox_get_storage" => get_storage(&input),
+            "proxmox_get_version" => get_version(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
     }
@@ -58,14 +59,15 @@ struct Config {
 }
 
 fn load_config() -> Result<Config, String> {
-    let host = host::config_read("host")
-        .map_err(|_| "Proxmox host URL is not configured. Set it in the plugin settings.".to_string())?;
+    let host = host::config_read("host").map_err(|_| {
+        "Proxmox host URL is not configured. Set it in the plugin settings.".to_string()
+    })?;
     let host = host.trim_end_matches('/').to_string();
 
     // Try API token auth first
     if let (Ok(token_id), Ok(token_secret)) = (
-        host::config_read("token_id"),
-        host::config_read("token_secret"),
+        host::secret_read("token_id"),
+        host::secret_read("token_secret"),
     ) {
         return Ok(Config {
             host,
@@ -76,10 +78,9 @@ fn load_config() -> Result<Config, String> {
     }
 
     // Fall back to username/password auth
-    if let (Ok(username), Ok(password)) = (
-        host::config_read("username"),
-        host::config_read("password"),
-    ) {
+    if let (Ok(username), Ok(password)) =
+        (host::config_read("username"), host::secret_read("password"))
+    {
         return Ok(Config {
             host,
             auth: AuthMethod::Password { username, password },
@@ -89,7 +90,8 @@ fn load_config() -> Result<Config, String> {
     Err("No authentication configured. Set either:\n\
          • API token (token_id + token_secret), or\n\
          • Username + password\n\
-         in the plugin settings.".to_string())
+         in the plugin settings."
+        .to_string())
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -152,7 +154,11 @@ struct HttpResponse {
 }
 
 fn truncate(s: &str, max: usize) -> &str {
-    if s.len() <= max { s } else { &s[..max] }
+    if s.len() <= max {
+        s
+    } else {
+        &s[..max]
+    }
 }
 
 /// Issue an HTTP request to the PVE host, returning status code and body.
@@ -171,12 +177,13 @@ fn http_execute(
         body,
     };
     let req_json = serde_json::to_string(&req).map_err(|e| e.to_string())?;
-    let resp_json = host::http_request(&req_json)
-        .map_err(|e| format!(
+    let resp_json = host::http_request(&req_json).map_err(|e| {
+        format!(
             "Could not reach Proxmox at {host}: {e}\n\
              Check that the host is reachable from this machine and port 8006 is open.\n\
              If the server uses a self-signed certificate, the host runtime may need to allow it."
-        ))?;
+        )
+    })?;
     let resp: HttpResponse = serde_json::from_str(&resp_json)
         .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
     Ok((resp.status, resp.body))
@@ -192,16 +199,25 @@ fn get_ticket(host: &str, username: &str, password: &str) -> Result<String, Stri
     );
 
     let mut headers = serde_json::Map::new();
-    headers.insert("Content-Type".into(), Value::String("application/x-www-form-urlencoded".into()));
+    headers.insert(
+        "Content-Type".into(),
+        Value::String("application/x-www-form-urlencoded".into()),
+    );
     headers.insert("Accept".into(), Value::String("application/json".into()));
 
     let (status, resp_body) = http_execute(host, "/access/ticket", "POST", headers, Some(body))?;
 
     if status == 401 || status == 403 {
-        return Err("Authentication failed — check your username, password, and realm in plugin settings.".into());
+        return Err(
+            "Authentication failed — check your username, password, and realm in plugin settings."
+                .into(),
+        );
     }
     if status >= 400 {
-        return Err(format!("Failed to get ticket (HTTP {status}): {}", truncate(&resp_body, 200)));
+        return Err(format!(
+            "Failed to get ticket (HTTP {status}): {}",
+            truncate(&resp_body, 200)
+        ));
     }
 
     let val: Value = serde_json::from_str(&resp_body)
@@ -224,7 +240,10 @@ fn pve_auth_headers(config: &Config) -> Result<serde_json::Map<String, Value>, S
         }
         AuthMethod::Password { username, password } => {
             let ticket = get_ticket(&config.host, username, password)?;
-            headers.insert("Cookie".into(), Value::String(format!("PVEAuthCookie={ticket}")));
+            headers.insert(
+                "Cookie".into(),
+                Value::String(format!("PVEAuthCookie={ticket}")),
+            );
         }
     }
 
@@ -237,10 +256,14 @@ fn pve_request(config: &Config, method: &str, path: &str) -> Result<Value, Strin
     let (status, body) = http_execute(&config.host, path, method, headers, None)?;
 
     if status == 401 || status == 403 {
-        return Err("Authentication failed — check your Proxmox credentials in plugin settings.".into());
+        return Err(
+            "Authentication failed — check your Proxmox credentials in plugin settings.".into(),
+        );
     }
     if status == 595 {
-        return Err("Connection refused — is the Proxmox host reachable and the port correct?".into());
+        return Err(
+            "Connection refused — is the Proxmox host reachable and the port correct?".into(),
+        );
     }
     if status >= 400 {
         if let Ok(val) = serde_json::from_str::<Value>(&body) {
@@ -304,7 +327,10 @@ fn fmt_percent(fraction: f64) -> String {
 }
 
 fn node_str(val: &Value, key: &str) -> String {
-    val.get(key).and_then(Value::as_str).unwrap_or("?").to_string()
+    val.get(key)
+        .and_then(Value::as_str)
+        .unwrap_or("?")
+        .to_string()
 }
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
@@ -315,7 +341,8 @@ fn list_nodes(_input: &Value) -> Result<String, String> {
     let config = load_config()?;
     let data = pve_request(&config, "GET", "/nodes")?;
 
-    let nodes: Vec<&Value> = data.as_array()
+    let nodes: Vec<&Value> = data
+        .as_array()
         .ok_or("unexpected response: expected array of nodes")?
         .iter()
         .collect();
@@ -351,7 +378,9 @@ fn list_nodes(_input: &Value) -> Result<String, String> {
 
 fn get_node_status(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let node = input.get("node").and_then(Value::as_str)
+    let node = input
+        .get("node")
+        .and_then(Value::as_str)
         .ok_or("node is required")?;
     validate_node(node)?;
 
@@ -539,7 +568,10 @@ fn list_guests(input: &Value) -> Result<String, String> {
 
     for g in &guests {
         let icon = if g.gtype == "qemu" { "VM" } else { "CT" };
-        result.push_str(&format!("\n\n  [{icon}] {} — {} ({})", g.vmid, g.name, g.status));
+        result.push_str(&format!(
+            "\n\n  [{icon}] {} — {} ({})",
+            g.vmid, g.name, g.status
+        ));
         result.push_str(&format!("\n    Node: {}", g.node));
         if let Some(cpu) = g.cpu {
             result.push_str(&format!(
@@ -574,20 +606,26 @@ fn list_guests(input: &Value) -> Result<String, String> {
 
 fn get_guest_status(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let node = input.get("node").and_then(Value::as_str)
+    let node = input
+        .get("node")
+        .and_then(Value::as_str)
         .ok_or("node is required")?;
-    let vmid = input.get("vmid").and_then(Value::as_u64)
+    let vmid = input
+        .get("vmid")
+        .and_then(Value::as_u64)
         .ok_or("vmid is required")?;
     validate_node(node)?;
 
     let (data, gtype) = match pve_request(
-        &config, "GET",
+        &config,
+        "GET",
         &format!("/nodes/{node}/qemu/{vmid}/status/current"),
     ) {
         Ok(d) => (d, "qemu"),
         Err(_) => {
             let data = pve_request(
-                &config, "GET",
+                &config,
+                "GET",
                 &format!("/nodes/{node}/lxc/{vmid}/status/current"),
             )
             .map_err(|_| {
@@ -722,31 +760,30 @@ fn format_config_value(key: &str, val: &Value) -> String {
 
 fn get_guest_config(input: &Value) -> Result<String, String> {
     let config = load_config()?;
-    let node = input.get("node").and_then(Value::as_str)
+    let node = input
+        .get("node")
+        .and_then(Value::as_str)
         .ok_or("node is required")?;
-    let vmid = input.get("vmid").and_then(Value::as_u64)
+    let vmid = input
+        .get("vmid")
+        .and_then(Value::as_u64)
         .ok_or("vmid is required")?;
     validate_node(node)?;
 
-    let (data, gtype) = match pve_request(
-        &config, "GET",
-        &format!("/nodes/{node}/qemu/{vmid}/config"),
-    ) {
-        Ok(d) => (d, "qemu"),
-        Err(_) => {
-            let data = pve_request(
-                &config, "GET",
-                &format!("/nodes/{node}/lxc/{vmid}/config"),
-            )
-            .map_err(|_| {
-                format!(
-                    "Guest {vmid} not found on node '{node}'. \
+    let (data, gtype) =
+        match pve_request(&config, "GET", &format!("/nodes/{node}/qemu/{vmid}/config")) {
+            Ok(d) => (d, "qemu"),
+            Err(_) => {
+                let data = pve_request(&config, "GET", &format!("/nodes/{node}/lxc/{vmid}/config"))
+                    .map_err(|_| {
+                        format!(
+                            "Guest {vmid} not found on node '{node}'. \
                     Use proxmox_list_guests to find valid VMIDs and nodes."
-                )
-            })?;
-            (data, "lxc")
-        }
-    };
+                        )
+                    })?;
+                (data, "lxc")
+            }
+        };
 
     let icon = if gtype == "qemu" { "VM" } else { "CT" };
     let mut result = format!("Configuration for {icon} {vmid} on {node}:\n");
@@ -762,17 +799,34 @@ fn get_guest_config(input: &Value) -> Result<String, String> {
     };
 
     let priority_keys = [
-        "name", "description", "hostname",
-        "ostype", "ostemplate",
-        "cores", "sockets", "vcpus", "cpuunits", "cpulimit",
-        "memory", "balloon", "swap",
-        "boot", "bootdisk",
-        "onboot", "startup",
-        "agent", "bios", "machine",
-        "unprivileged", "protection",
-        "template", "tags",
-        "features", "timezone", "arch",
-        "lxc",  // raw LXC config entries (device passthrough, cgroups, etc.)
+        "name",
+        "description",
+        "hostname",
+        "ostype",
+        "ostemplate",
+        "cores",
+        "sockets",
+        "vcpus",
+        "cpuunits",
+        "cpulimit",
+        "memory",
+        "balloon",
+        "swap",
+        "boot",
+        "bootdisk",
+        "onboot",
+        "startup",
+        "agent",
+        "bios",
+        "machine",
+        "unprivileged",
+        "protection",
+        "template",
+        "tags",
+        "features",
+        "timezone",
+        "arch",
+        "lxc", // raw LXC config entries (device passthrough, cgroups, etc.)
     ];
 
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
@@ -787,7 +841,9 @@ fn get_guest_config(input: &Value) -> Result<String, String> {
     let mut remaining: Vec<&String> = obj.keys().filter(|k| !seen.contains(k.as_str())).collect();
     remaining.sort();
 
-    let disk_prefixes = ["ide", "sata", "scsi", "virtio", "rootfs", "mp", "dev", "unused"];
+    let disk_prefixes = [
+        "ide", "sata", "scsi", "virtio", "rootfs", "mp", "dev", "unused",
+    ];
     let net_prefixes = ["net"];
 
     let mut disk_keys: Vec<&String> = Vec::new();
@@ -882,12 +938,16 @@ fn get_cluster_resources(input: &Value) -> Result<String, String> {
         for n in &nodes {
             let name = node_str(n, "node");
             let status = node_str(n, "status");
-            let cpu = n.get("cpu").and_then(Value::as_f64)
+            let cpu = n
+                .get("cpu")
+                .and_then(Value::as_f64)
                 .map_or_else(String::new, |c| fmt_percent(c));
             let maxcpu = n.get("maxcpu").and_then(Value::as_u64).unwrap_or(0);
             let mem = n.get("mem").and_then(Value::as_u64).unwrap_or(0);
             let maxmem = n.get("maxmem").and_then(Value::as_u64).unwrap_or(0);
-            let uptime = n.get("uptime").and_then(Value::as_u64)
+            let uptime = n
+                .get("uptime")
+                .and_then(Value::as_u64)
                 .map_or_else(String::new, |u| fmt_uptime(u));
 
             result.push_str(&format!("\n    {name} — {status}"));
@@ -920,7 +980,9 @@ fn get_cluster_resources(input: &Value) -> Result<String, String> {
             let name = node_str(v, "name");
             let status = node_str(v, "status");
             let node = node_str(v, "node");
-            let cpu = v.get("cpu").and_then(Value::as_f64)
+            let cpu = v
+                .get("cpu")
+                .and_then(Value::as_f64)
                 .map_or_else(String::new, |c| fmt_percent(c));
             let maxcpu = v.get("maxcpu").and_then(Value::as_u64).unwrap_or(0);
             let mem = v.get("mem").and_then(Value::as_u64).unwrap_or(0);
@@ -953,7 +1015,9 @@ fn get_cluster_resources(input: &Value) -> Result<String, String> {
             let name = node_str(c, "name");
             let status = node_str(c, "status");
             let node = node_str(c, "node");
-            let cpu = c.get("cpu").and_then(Value::as_f64)
+            let cpu = c
+                .get("cpu")
+                .and_then(Value::as_f64)
                 .map_or_else(String::new, |c| fmt_percent(c));
             let maxcpu = c.get("maxcpu").and_then(Value::as_u64).unwrap_or(0);
             let mem = c.get("mem").and_then(Value::as_u64).unwrap_or(0);
@@ -1054,7 +1118,10 @@ fn format_storage_list(storages: &[&Value], title: &str) -> Result<String, Strin
         let node = node_str(s, "node");
         let content = s.get("content").and_then(Value::as_str).unwrap_or("-");
         let shared = s.get("shared").and_then(Value::as_u64).unwrap_or(0);
-        let status = s.get("status").and_then(Value::as_str).unwrap_or("available");
+        let status = s
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("available");
         let total = s.get("total").and_then(Value::as_u64).unwrap_or(0);
         let used = s.get("used").and_then(Value::as_u64).unwrap_or(0);
         let avail = s.get("avail").and_then(Value::as_u64).unwrap_or(0);
@@ -1216,7 +1283,10 @@ mod tests {
     fn url_encode_preserve_at_values() {
         assert_eq!(url_encode_preserve_at("root@pam"), "root@pam");
         assert_eq!(url_encode_preserve_at("user@realm"), "user@realm");
-        assert_eq!(url_encode_preserve_at("name with spaces@pam"), "name%20with%20spaces@pam");
+        assert_eq!(
+            url_encode_preserve_at("name with spaces@pam"),
+            "name%20with%20spaces@pam"
+        );
         assert_eq!(url_encode_preserve_at(""), "");
     }
 
@@ -1242,23 +1312,11 @@ mod tests {
 
     #[test]
     fn format_config_value_memory_keys() {
-        assert_eq!(
-            format_config_value("memory", &Value::from(2048)),
-            "2.0 GB"
-        );
-        assert_eq!(
-            format_config_value("balloon", &Value::from(1024)),
-            "1.0 GB"
-        );
-        assert_eq!(
-            format_config_value("swap", &Value::from(512)),
-            "512.0 MB"
-        );
+        assert_eq!(format_config_value("memory", &Value::from(2048)), "2.0 GB");
+        assert_eq!(format_config_value("balloon", &Value::from(1024)), "1.0 GB");
+        assert_eq!(format_config_value("swap", &Value::from(512)), "512.0 MB");
         // Non-memory keys stay as raw numbers
-        assert_eq!(
-            format_config_value("cores", &Value::from(4)),
-            "4"
-        );
+        assert_eq!(format_config_value("cores", &Value::from(4)), "4");
     }
 
     #[test]
@@ -1277,7 +1335,10 @@ mod tests {
     fn format_config_value_lxc_array() {
         let lxc_val = serde_json::json!([
             ["lxc.cgroup2.devices.allow", "c 226:* rwm"],
-            ["lxc.mount.entry", "/dev/dri/renderD129 /dev/dri/renderD129 none bind,optional,create=file"]
+            [
+                "lxc.mount.entry",
+                "/dev/dri/renderD129 /dev/dri/renderD129 none bind,optional,create=file"
+            ]
         ]);
         let result = format_config_value("lxc", &lxc_val);
         assert!(result.contains("lxc.cgroup2.devices.allow = c 226:* rwm"));

@@ -1,9 +1,9 @@
 id = "movies-tv"
 name = "Movies & TV"
-version = "0.1.1"
+version = "0.1.3"
 description = "Search for movies and TV shows — get ratings, cast, plot summaries, and streaming info — powered by TMDB"
 tier = "wasm"
-permissions = ["outbound_http"]
+permissions = ["outbound_http", "read_secrets"]
 allowed_hosts = [
     "api.themoviedb.org",
     "image.tmdb.org",

@@ -10,6 +10,7 @@ wit_bindgen::generate!({
             data-read: func(path: string) -> result<string, string>;
             data-write: func(path: string, content: string) -> result<_, string>;
             config-read: func(key: string) -> result<string, string>;
+            secret-read: func(key: string) -> result<string, string>;
         }
 
         world plugin {
@@ -26,8 +27,8 @@ struct GitHub;
 
 impl Guest for GitHub {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
             "github_search_repositories" => search_repositories(&input),
@@ -77,7 +78,7 @@ fn github_request<T: for<'de> Deserialize<'de>>(
         Value::String("2022-11-28".into()),
     );
 
-    if let Ok(token) = host::config_read("token") {
+    if let Ok(token) = host::secret_read("token") {
         if !token.is_empty() {
             headers.insert(
                 "Authorization".into(),
@@ -99,7 +100,10 @@ fn github_request<T: for<'de> Deserialize<'de>>(
         .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
 
     if resp.status >= 400 {
-        return Err(format!("GitHub API returned HTTP {}: {}", resp.status, resp.body));
+        return Err(format!(
+            "GitHub API returned HTTP {}: {}",
+            resp.status, resp.body
+        ));
     }
 
     serde_json::from_str(&resp.body).map_err(|e| format!("failed to parse GitHub response: {e}"))
@@ -122,7 +126,10 @@ struct RepoBrief {
 }
 
 fn search_repositories(input: &Value) -> Result<String, String> {
-    let query = input.get("query").and_then(Value::as_str).ok_or("query is required")?;
+    let query = input
+        .get("query")
+        .and_then(Value::as_str)
+        .ok_or("query is required")?;
     let sort = input.get("sort").and_then(Value::as_str).unwrap_or("stars");
     let order = input.get("order").and_then(Value::as_str).unwrap_or("desc");
 
@@ -134,7 +141,7 @@ fn search_repositories(input: &Value) -> Result<String, String> {
     );
 
     let resp: SearchResponse = github_request("GET", &url, None)?;
-    
+
     if resp.items.is_empty() {
         return Ok(format!("No repositories found for query: {query}"));
     }
@@ -173,8 +180,14 @@ struct License {
 }
 
 fn get_repository(input: &Value) -> Result<String, String> {
-    let owner = input.get("owner").and_then(Value::as_str).ok_or("owner is required")?;
-    let repo = input.get("repo").and_then(Value::as_str).ok_or("repo is required")?;
+    let owner = input
+        .get("owner")
+        .and_then(Value::as_str)
+        .ok_or("owner is required")?;
+    let repo = input
+        .get("repo")
+        .and_then(Value::as_str)
+        .ok_or("repo is required")?;
 
     validate_path_segment(owner, "owner")?;
     validate_path_segment(repo, "repo")?;
@@ -183,9 +196,18 @@ fn get_repository(input: &Value) -> Result<String, String> {
     let resp: RepoDetail = github_request("GET", &url, None)?;
 
     let mut result = format!("Repository: {}\n", resp.full_name);
-    result.push_str(&format!("Description: {}\n", resp.description.as_deref().unwrap_or("None")));
-    result.push_str(&format!("Stars: {}, Forks: {}\n", resp.stargazers_count, resp.forks_count));
-    result.push_str(&format!("Primary Language: {}\n", resp.language.as_deref().unwrap_or("Unknown")));
+    result.push_str(&format!(
+        "Description: {}\n",
+        resp.description.as_deref().unwrap_or("None")
+    ));
+    result.push_str(&format!(
+        "Stars: {}, Forks: {}\n",
+        resp.stargazers_count, resp.forks_count
+    ));
+    result.push_str(&format!(
+        "Primary Language: {}\n",
+        resp.language.as_deref().unwrap_or("Unknown")
+    ));
     result.push_str(&format!("Default Branch: {}\n", resp.default_branch));
     if let Some(license) = resp.license {
         result.push_str(&format!("License: {}\n", license.name));
@@ -208,8 +230,14 @@ struct ContentItem {
 }
 
 fn list_repository_contents(input: &Value) -> Result<String, String> {
-    let owner = input.get("owner").and_then(Value::as_str).ok_or("owner is required")?;
-    let repo = input.get("repo").and_then(Value::as_str).ok_or("repo is required")?;
+    let owner = input
+        .get("owner")
+        .and_then(Value::as_str)
+        .ok_or("owner is required")?;
+    let repo = input
+        .get("repo")
+        .and_then(Value::as_str)
+        .ok_or("repo is required")?;
     let path = input.get("path").and_then(Value::as_str).unwrap_or("");
     let reference = input.get("ref").and_then(Value::as_str);
 
@@ -261,9 +289,18 @@ fn list_repository_contents(input: &Value) -> Result<String, String> {
 // ── File Content ──────────────────────────────────────────────────────────────
 
 fn get_file_content(input: &Value) -> Result<String, String> {
-    let owner = input.get("owner").and_then(Value::as_str).ok_or("owner is required")?;
-    let repo = input.get("repo").and_then(Value::as_str).ok_or("repo is required")?;
-    let path = input.get("path").and_then(Value::as_str).ok_or("path is required")?;
+    let owner = input
+        .get("owner")
+        .and_then(Value::as_str)
+        .ok_or("owner is required")?;
+    let repo = input
+        .get("repo")
+        .and_then(Value::as_str)
+        .ok_or("repo is required")?;
+    let path = input
+        .get("path")
+        .and_then(Value::as_str)
+        .ok_or("path is required")?;
     let reference = input.get("ref").and_then(Value::as_str);
 
     validate_path_segment(owner, "owner")?;
@@ -287,7 +324,7 @@ fn get_file_content(input: &Value) -> Result<String, String> {
         Value::String("helpcore-github-plugin/0.1.0".into()),
     );
 
-    if let Ok(token) = host::config_read("token") {
+    if let Ok(token) = host::secret_read("token") {
         if !token.is_empty() {
             headers.insert(
                 "Authorization".into(),
@@ -309,7 +346,10 @@ fn get_file_content(input: &Value) -> Result<String, String> {
         .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
 
     if resp.status >= 400 {
-        return Err(format!("Failed to fetch file: HTTP {}: {}", resp.status, resp.body));
+        return Err(format!(
+            "Failed to fetch file: HTTP {}: {}",
+            resp.status, resp.body
+        ));
     }
 
     Ok(resp.body)
@@ -327,8 +367,16 @@ fn url_encode(s: &str) -> String {
             b' ' => encoded.push('+'),
             _ => {
                 encoded.push('%');
-                encoded.push(char::from_digit((b >> 4) as u32, 16).unwrap().to_ascii_uppercase());
-                encoded.push(char::from_digit((b & 0xf) as u32, 16).unwrap().to_ascii_uppercase());
+                encoded.push(
+                    char::from_digit((b >> 4) as u32, 16)
+                        .unwrap()
+                        .to_ascii_uppercase(),
+                );
+                encoded.push(
+                    char::from_digit((b & 0xf) as u32, 16)
+                        .unwrap()
+                        .to_ascii_uppercase(),
+                );
             }
         }
     }
@@ -354,7 +402,10 @@ mod tests {
     fn test_url_encode() {
         assert_eq!(url_encode("rust-lang/rust"), "rust-lang%2Frust");
         assert_eq!(url_encode("hello world"), "hello+world");
-        assert_eq!(url_encode("special!@#$%^&*()"), "special%21%40%23%24%25%5E%26%2A%28%29");
+        assert_eq!(
+            url_encode("special!@#$%^&*()"),
+            "special%21%40%23%24%25%5E%26%2A%28%29"
+        );
     }
 
     #[test]
