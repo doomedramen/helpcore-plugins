@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "date.nager.at",
 ]
+
+brief = "Use when the user asks about public holidays — what holidays a country has in a given year or what holidays are coming up."

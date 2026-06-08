@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "www.thecolorapi.com",
 ]
+
+brief = "Use when the user asks to convert between color formats, generate color palettes or harmonies, or identify a color name from a hex value."

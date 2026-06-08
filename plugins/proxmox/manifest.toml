@@ -6,6 +6,8 @@ tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = ["*"]
 
+brief = "Use when the user asks to manage their Proxmox VE server — checking node, VM, or container status, resource usage, storage, or cluster health."
+
 [[config_schema]]
 key = "host"
 label = "Proxmox Host URL"

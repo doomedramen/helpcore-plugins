@@ -9,6 +9,8 @@ allowed_hosts = [
     "image.tmdb.org",
 ]
 
+brief = "Use when the user asks about movies or TV shows — searching for titles, getting ratings, cast, plot summaries, or season details."
+
 [[config_schema]]
 key = "api_key"
 label = "TMDB API Key"

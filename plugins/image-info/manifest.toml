@@ -5,3 +5,5 @@ description = "Inspect image metadata — dimensions, format, color mode — fro
 tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = []
+
+brief = "Use when the user provides an image URL or base64 data and asks about image format, dimensions, color mode, or file size."

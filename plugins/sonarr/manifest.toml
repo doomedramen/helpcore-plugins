@@ -6,6 +6,8 @@ tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = ["*"]
 
+brief = "Use when the user asks to search for, add, or manage TV shows in their Sonarr download server."
+
 [[config_schema]]
 key = "url"
 label = "Sonarr URL"

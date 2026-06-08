@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "restcountries.com",
 ]
+
+brief = "Use when the user asks for facts about a specific country — population, capital, currency, language, timezone, or border information."

@@ -4,3 +4,5 @@ version = "0.1.1"
 description = "Generate QR codes from text or URLs — output as ASCII art or SVG"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user asks to generate a QR code from text, a URL, or any content."

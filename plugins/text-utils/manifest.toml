@@ -4,3 +4,5 @@ version = "0.1.1"
 description = "String manipulation toolkit — base64, hashing, UUIDs, JSON formatting, case conversion, and more"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user asks to encode or decode base64, hash text, generate UUIDs, format or validate JSON, count text, convert case, slugify, or extract URLs and emails."

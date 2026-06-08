@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "en.wikipedia.org",
 ]
+
+brief = "Use when the user asks for a quick Wikipedia summary — who someone is, what something is, or a brief explanation of a topic."

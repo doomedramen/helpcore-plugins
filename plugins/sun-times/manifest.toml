@@ -8,3 +8,5 @@ allowed_hosts = [
     "geocoding-api.open-meteo.com",
     "api.sunrise-sunset.org",
 ]
+
+brief = "Use when the user asks about sunrise, sunset, twilight times, or daylight hours for a location."

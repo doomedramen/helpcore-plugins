@@ -6,6 +6,8 @@ tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = ["*"]
 
+brief = "Use when the user asks about their Plex media server — searching for movies, shows, or music, recently added, currently playing, or library contents."
+
 [[config_schema]]
 key = "url"
 label = "Plex Server URL"

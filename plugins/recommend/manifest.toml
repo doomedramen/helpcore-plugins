@@ -8,6 +8,8 @@ allowed_hosts = [
     "tastedive.com",
 ]
 
+brief = "Use when the user asks for content recommendations — similar music artists, movies, TV shows, books, authors, games, or podcasts."
+
 [[config_schema]]
 key = "api_key"
 label = "TasteDive API Key"

@@ -6,6 +6,8 @@ tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = ["*"]
 
+brief = "Use when the user asks to search for, request, or discover movies and TV shows through Overseerr or Jellyseerr."
+
 [[config_schema]]
 key = "url"
 label = "Seerr URL"

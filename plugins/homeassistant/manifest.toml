@@ -6,6 +6,8 @@ tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = ["*"]
 
+brief = "Use when the user asks to control smart home devices — lights, thermostats, locks, covers, fans, or to trigger automations, scenes, or scripts."
+
 [[config_schema]]
 key = "url"
 label = "Home Assistant URL"

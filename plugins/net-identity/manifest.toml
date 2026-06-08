@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "ipinfo.io",
 ]
+
+brief = "Use when the user asks about their IP address, where they are connecting from, their ISP, or to look up location info for a specific IP."

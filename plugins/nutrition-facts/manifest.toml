@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "world.openfoodfacts.org",
 ]
+
+brief = "Use when the user asks for nutritional information — calories, protein, fat, carbs of a food, product nutrition by barcode, or comparing two foods."

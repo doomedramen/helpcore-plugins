@@ -8,3 +8,5 @@ allowed_hosts = [
     "query1.finance.yahoo.com",
     "api.coingecko.com",
 ]
+
+brief = "Use when the user asks for a stock price by ticker symbol or a cryptocurrency price by name or symbol."

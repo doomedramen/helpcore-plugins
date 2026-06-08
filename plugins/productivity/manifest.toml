@@ -4,3 +4,5 @@ version = "0.1.2"
 description = "Daily micro-tools — pomodoro timer, random picker, dice roller, coin flip, password generator"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user asks for a pomodoro timer, random pick from a list, dice roll, coin flip, random number, or password generation."

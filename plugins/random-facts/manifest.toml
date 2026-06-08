@@ -10,3 +10,5 @@ allowed_hosts = [
     "official-joke-api.appspot.com",
     "api.quotable.io",
 ]
+
+brief = "Use when the user asks for a random joke, fun fact, or inspirational quote — for entertainment, not factual reference."

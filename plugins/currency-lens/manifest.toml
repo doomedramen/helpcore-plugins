@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "api.frankfurter.dev",
 ]
+
+brief = "Use when the user asks to convert an amount between currencies or check the current exchange rate between two currencies."

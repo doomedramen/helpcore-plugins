@@ -8,3 +8,5 @@ allowed_hosts = [
     "api.open-meteo.com",
     "geocoding-api.open-meteo.com",
 ]
+
+brief = "Use when the user asks about current conditions, temperature, or weather forecast for any location."

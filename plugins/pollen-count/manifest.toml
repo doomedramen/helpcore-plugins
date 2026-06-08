@@ -8,3 +8,5 @@ allowed_hosts = [
     "geocoding-api.open-meteo.com",
     "air-quality-api.open-meteo.com",
 ]
+
+brief = "Use when the user asks about pollen levels or allergy conditions for a location in Europe."

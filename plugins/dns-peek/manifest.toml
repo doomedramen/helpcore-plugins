@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "cloudflare-dns.com",
 ]
+
+brief = "Use when the user asks about DNS records for a domain — IP address, mail server, name server, or TXT records."

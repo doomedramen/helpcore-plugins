@@ -7,3 +7,5 @@ permissions = ["outbound_http"]
 allowed_hosts = [
     "timeapi.io",
 ]
+
+brief = "Use when the user asks what time it is in a specific city or country, to convert a time between timezones, or about timezone differences."

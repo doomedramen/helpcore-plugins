@@ -4,3 +4,5 @@ version = "0.1.1"
 description = "Date calculations — day of week, week numbers, date differences, unix timestamp conversion, and countdowns"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user asks for date arithmetic, weekday of a date, week number, Unix timestamp conversion, or leap year check."

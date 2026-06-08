@@ -5,3 +5,5 @@ description = "Search the web using DuckDuckGo — returns ranked results with t
 tier = "wasm"
 permissions = ["outbound_http"]
 allowed_hosts = ["html.duckduckgo.com"]
+
+brief = "Use when the user asks for current information, recent events, web search results, or anything requiring live internet knowledge beyond your training data."

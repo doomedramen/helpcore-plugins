@@ -4,3 +4,5 @@ version = "0.1.1"
 description = "Evaluate mathematical expressions — basic arithmetic, trigonometry, logarithms, and more"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user asks to compute, calculate, solve, or evaluate a math expression, percentage, or numeric conversion."

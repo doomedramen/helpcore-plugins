@@ -4,3 +4,5 @@ version = "0.1.2"
 description = "Convert between common data formats — CSV, JSON, YAML, XML, and Markdown-to-HTML"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user needs to convert data between formats — CSV, JSON, YAML, XML, or Markdown to HTML."

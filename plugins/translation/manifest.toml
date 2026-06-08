@@ -8,3 +8,5 @@ allowed_hosts = [
     "translate.argosopentech.com",
     "libretranslate.com",
 ]
+
+brief = "Use when the user asks to translate text between languages or detect what language a text is written in."

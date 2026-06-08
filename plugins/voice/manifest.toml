@@ -7,6 +7,8 @@ permissions = ["outbound_http"]
 provides = ["audio"]
 allowed_hosts = ["*"]
 
+brief = "Use when the user provides an audio file or URL to transcribe, or asks for a spoken text-to-speech response to be generated."
+
 [[config_schema]]
 key = "stt_url"
 label = "STT API URL"

@@ -4,3 +4,5 @@ version = "0.1.1"
 description = "Process Markdown text — render to plain text, extract links, headings, code blocks, and tables"
 tier = "wasm"
 permissions = []
+
+brief = "Use when the user asks to strip Markdown formatting to plain text, or extract links, headings, or code blocks from Markdown content."
