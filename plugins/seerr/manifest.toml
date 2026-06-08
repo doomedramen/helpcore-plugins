@@ -1,6 +1,6 @@
 id = "seerr"
 name = "Seerr"
-version = "0.1.1"
+version = "0.1.2"
 description = "Request movies and TV shows through Overseerr/Jellyseerr — search, discover trending content, and submit requests"
 tier = "wasm"
 permissions = ["outbound_http"]
