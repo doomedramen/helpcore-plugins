@@ -1,0 +1,98 @@
+{
+  "tools": [
+    {
+      "name": "github_search_repositories",
+      "description": "Search for public repositories on GitHub. Returns a list of matching repositories with their stars, descriptions, and owners.",
+      "input_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query (e.g. 'topic:rust', 'user:google', 'machine learning')"
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["stars", "forks", "updated"],
+            "description": "Sort field"
+          },
+          "order": {
+            "type": "string",
+            "enum": ["asc", "desc"],
+            "description": "Sort order (default: desc)"
+          }
+        }
+      }
+    },
+    {
+      "name": "github_get_repository",
+      "description": "Get detailed metadata for a specific GitHub repository, including its description, stars, primary language, and default branch.",
+      "input_schema": {
+        "type": "object",
+        "required": ["owner", "repo"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "The repository owner (e.g. 'rust-lang')"
+          },
+          "repo": {
+            "type": "string",
+            "description": "The repository name (e.g. 'rust')"
+          }
+        }
+      }
+    },
+    {
+      "name": "github_list_repository_contents",
+      "description": "List files and directories at a specific path in a GitHub repository.",
+      "input_schema": {
+        "type": "object",
+        "required": ["owner", "repo"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "The repository owner"
+          },
+          "repo": {
+            "type": "string",
+            "description": "The repository name"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path in the repository (e.g. 'src', 'docs/API.md'). Defaults to root."
+          },
+          "ref": {
+            "type": "string",
+            "description": "The name of the commit/branch/tag. Default: the repository's default branch."
+          }
+        }
+      }
+    },
+    {
+      "name": "github_get_file_content",
+      "description": "Retrieve the raw plain-text content of a file from a GitHub repository.",
+      "input_schema": {
+        "type": "object",
+        "required": ["owner", "repo", "path"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "The repository owner"
+          },
+          "repo": {
+            "type": "string",
+            "description": "The repository name"
+          },
+          "path": {
+            "type": "string",
+            "description": "The path to the file (e.g. 'README.md')"
+          },
+          "ref": {
+            "type": "string",
+            "description": "The name of the commit/branch/tag. Default: the repository's default branch."
+          }
+        }
+      }
+    }
+  ]
+}

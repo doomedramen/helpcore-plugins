@@ -1,0 +1,16 @@
+id = "github"
+name = "GitHub"
+version = "0.1.1"
+description = "Search and explore GitHub repositories, list contents, and read files with structured data."
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = ["api.github.com", "raw.githubusercontent.com"]
+
+brief = "Use when the user wants to search for GitHub repositories, explore their file structure, or read file contents from a repository."
+
+[[config_schema]]
+key = "token"
+label = "GitHub Personal Access Token"
+type = "secret"
+required = false
+hint = "Optional. Increases rate limits for API requests. Create one at github.com/settings/tokens"
