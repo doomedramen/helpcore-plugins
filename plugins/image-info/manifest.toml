@@ -1,0 +1,7 @@
+id = "image-info"
+name = "Image Info"
+version = "0.1.1"
+description = "Inspect image metadata — dimensions, format, color mode — from base64 data or URLs"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = []

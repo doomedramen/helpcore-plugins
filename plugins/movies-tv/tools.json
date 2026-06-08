@@ -1,0 +1,50 @@
+{
+  "tools": [
+    {
+      "name": "movie_search",
+      "description": "Search for movies by title. Returns matches with year, rating, overview, and poster image. Use for questions like 'tell me about Inception' or 'what's the best sci-fi movie from 2023'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "Movie title to search for, e.g. 'Inception', 'The Matrix', 'Parasite'" },
+          "year": { "type": "number", "description": "Optional year to narrow down results (e.g. 2010)" }
+        }
+      }
+    },
+    {
+      "name": "tv_search",
+      "description": "Search for TV shows by name. Returns matches with year, rating, overview, and poster image. Use for questions like 'tell me about Breaking Bad' or 'what's the best new drama series'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "TV show name to search for, e.g. 'Breaking Bad', 'Stranger Things', 'The Crown'" },
+          "year": { "type": "number", "description": "Optional first-air year to narrow results" }
+        }
+      }
+    },
+    {
+      "name": "movie_detail",
+      "description": "Get detailed information about a specific movie including full cast, runtime, budget, genres, and production companies. Use after movie_search when the user wants more details.",
+      "input_schema": {
+        "type": "object",
+        "required": ["movie_id"],
+        "properties": {
+          "movie_id": { "type": "number", "description": "The TMDB movie ID returned by movie_search" }
+        }
+      }
+    },
+    {
+      "name": "tv_detail",
+      "description": "Get detailed information about a specific TV show including number of seasons/episodes, networks, creators, and episode runtimes. Use after tv_search when the user wants more details.",
+      "input_schema": {
+        "type": "object",
+        "required": ["tv_id"],
+        "properties": {
+          "tv_id": { "type": "number", "description": "The TMDB TV show ID returned by tv_search" }
+        }
+      }
+    }
+  ]
+}

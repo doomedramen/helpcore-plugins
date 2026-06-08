@@ -1,0 +1,76 @@
+{
+  "tools": [
+    {
+      "name": "pomodoro",
+      "description": "Plan pomodoro sessions. Calculates total time, break schedule, and estimated finish time. Use for questions like 'how long is 4 pomodoros' or 'plan 6 pomodoro sessions'.",
+      "input_schema": {
+        "type": "object", "required": ["sessions"],
+        "properties": {
+          "sessions": { "type": "number", "description": "Number of pomodoro sessions (default: 4)" },
+          "work_minutes": { "type": "number", "description": "Work duration per session in minutes (default: 25)" },
+          "short_break": { "type": "number", "description": "Short break duration in minutes (default: 5)" },
+          "long_break": { "type": "number", "description": "Long break duration in minutes (default: 15)" },
+          "long_break_after": { "type": "number", "description": "Take a long break after this many sessions (default: 4)" }
+        }
+      }
+    },
+    {
+      "name": "random_pick",
+      "description": "Randomly pick one or more items from a comma-separated list. Use for 'pick a number between 1 and 10', 'choose a restaurant: pizza, sushi, tacos', or 'random movie from my list'.",
+      "input_schema": {
+        "type": "object", "required": ["items"],
+        "properties": {
+          "items": { "type": "string", "description": "Comma-separated list of items to pick from, e.g. 'pizza, sushi, tacos, burgers'" },
+          "count": { "type": "number", "description": "Number of items to pick (default: 1)" }
+        }
+      }
+    },
+    {
+      "name": "dice_roll",
+      "description": "Roll dice in standard notation. Use for 'roll a d20', 'roll 3d6', 'roll 2d8+4', or 'roll percentile'.",
+      "input_schema": {
+        "type": "object", "required": ["notation"],
+        "properties": {
+          "notation": { "type": "string", "description": "Dice notation: NdS+M where N=count, S=sides, M=modifier. Examples: '1d20', '3d6', '2d8+4', '1d100', '4d6' (for rolling stats). Also supports multiple dice like '2d6, 2d6, 2d6, 2d6, 2d6, 2d6'." }
+        }
+      }
+    },
+    {
+      "name": "coin_flip",
+      "description": "Flip a coin. Use for yes/no decisions or 'best of N' series. Returns heads or tails with count statistics.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "flips": { "type": "number", "description": "Number of flips (default: 1). Use 3 or 5 for 'best of N'." }
+        }
+      }
+    },
+    {
+      "name": "random_number",
+      "description": "Generate random numbers. Use for 'give me a random number between 1 and 100', 'pick 6 lottery numbers', or 'generate a random 4-digit PIN'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "min": { "type": "number", "description": "Minimum value (default: 1)" },
+          "max": { "type": "number", "description": "Maximum value (default: 100)" },
+          "count": { "type": "number", "description": "How many numbers to generate (default: 1). Set to 6 for lottery-style." },
+          "unique": { "type": "boolean", "description": "Whether numbers must be unique (default: false)" }
+        }
+      }
+    },
+    {
+      "name": "password_generate",
+      "description": "Generate a strong random password with configurable length and character sets. Use when the user needs a password, API key, or secure token.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "length": { "type": "number", "description": "Password length (default: 20, min: 8, max: 128)" },
+          "upper": { "type": "boolean", "description": "Include uppercase letters (default: true)" },
+          "lower": { "type": "boolean", "description": "Include lowercase letters (default: true)" },
+          "digits": { "type": "boolean", "description": "Include digits (default: true)" },
+          "symbols": { "type": "boolean", "description": "Include symbols (default: true)" }
+        }
+      }
+    }
+  ]
+}

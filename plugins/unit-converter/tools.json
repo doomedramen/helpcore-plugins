@@ -1,0 +1,17 @@
+{
+  "tools": [
+    {
+      "name": "convert",
+      "description": "Convert a value between units. Supports length (mm, cm, m, km, in, ft, yd, mi), weight (mg, g, kg, oz, lb, st, ton), temperature (c, f, k), volume (ml, l, gal, qt, pt, cup, floz, tbsp, tsp), speed (mps, kmh, mph, knot), data (b, kb, mb, gb, tb, kib, mib, gib, tib), area (m2, km2, ha, ft2, acre, mi2), time (s, min, hr, day, week, year), pressure (pa, kpa, bar, atm, psi, mmhg), energy (j, kj, cal, kcal, wh, kwh), and angle (deg, rad, grad). Use for questions like 'how many miles is 10km', 'convert 100F to C', or 'what is 5GB in MB'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["value", "from", "to"],
+        "properties": {
+          "value": { "type": "number", "description": "The numeric value to convert" },
+          "from": { "type": "string", "description": "Source unit abbreviation (case-insensitive), e.g. 'km', 'lb', 'f'" },
+          "to": { "type": "string", "description": "Target unit abbreviation (case-insensitive), e.g. 'mi', 'kg', 'c'" }
+        }
+      }
+    }
+  ]
+}

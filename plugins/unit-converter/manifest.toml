@@ -1,0 +1,6 @@
+id = "unit-converter"
+name = "Unit Converter"
+version = "0.1.1"
+description = "Convert between common units — length, weight, temperature, volume, speed, data size, and more"
+tier = "wasm"
+permissions = []

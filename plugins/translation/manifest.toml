@@ -1,0 +1,10 @@
+id = "translation"
+name = "Translation"
+version = "0.1.1"
+description = "Translate text between languages and detect languages — powered by LibreTranslate"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "translate.argosopentech.com",
+    "libretranslate.com",
+]

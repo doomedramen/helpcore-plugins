@@ -1,0 +1,9 @@
+id = "country-info"
+name = "Country Info"
+version = "0.1.1"
+description = "Look up information about countries — population, capital, currency, flag, languages, and more"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "restcountries.com",
+]

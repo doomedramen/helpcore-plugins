@@ -1,0 +1,6 @@
+id = "productivity"
+name = "Productivity Tools"
+version = "0.1.1"
+description = "Daily micro-tools — pomodoro timer, random picker, dice roller, coin flip, password generator"
+tier = "wasm"
+permissions = []

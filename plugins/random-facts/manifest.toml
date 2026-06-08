@@ -1,0 +1,12 @@
+id = "random-facts"
+name = "Random Facts"
+version = "0.1.1"
+description = "Get jokes, fun facts, quotes, and Chuck Norris facts — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "api.chucknorris.io",
+    "uselessfacts.jsph.pl",
+    "official-joke-api.appspot.com",
+    "api.quotable.io",
+]

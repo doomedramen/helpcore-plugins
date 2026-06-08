@@ -1,0 +1,6 @@
+id = "data-format"
+name = "Data Format"
+version = "0.1.1"
+description = "Convert between common data formats — CSV, JSON, YAML, XML, and Markdown-to-HTML"
+tier = "wasm"
+permissions = []

@@ -1,0 +1,125 @@
+{
+  "tools": [
+    {
+      "name": "base64_encode",
+      "description": "Encode a string to base64. Useful when you need to base64-encode data for URLs, APIs, or data URIs.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to encode" }
+        }
+      }
+    },
+    {
+      "name": "base64_decode",
+      "description": "Decode a base64 string back to plain text. Useful for decoding base64-encoded data from APIs or files.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The base64 string to decode" }
+        }
+      }
+    },
+    {
+      "name": "hash",
+      "description": "Generate a SHA256 or MD5 hash of a string. Returns the hex-encoded digest. Use for checksums, fingerprinting, or when the user asks for a hash.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text", "algorithm"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to hash" },
+          "algorithm": { "type": "string", "enum": ["sha256", "md5"], "description": "The hash algorithm to use" }
+        }
+      }
+    },
+    {
+      "name": "uuid_v4",
+      "description": "Generate a random UUID v4 string. Use when the user needs a unique identifier.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      }
+    },
+    {
+      "name": "json_format",
+      "description": "Pretty-print a JSON string with indentation. Useful for making minified or messy JSON readable.",
+      "input_schema": {
+        "type": "object",
+        "required": ["json"],
+        "properties": {
+          "json": { "type": "string", "description": "A JSON string to format" }
+        }
+      }
+    },
+    {
+      "name": "json_validate",
+      "description": "Validate whether a string is valid JSON. Returns the parsed structure summary if valid, or the error if not.",
+      "input_schema": {
+        "type": "object",
+        "required": ["json"],
+        "properties": {
+          "json": { "type": "string", "description": "A JSON string to validate" }
+        }
+      }
+    },
+    {
+      "name": "count_text",
+      "description": "Count words, characters, and lines in a string. Use for questions like 'how many words is this' or 'how long is this text'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to analyze" }
+        }
+      }
+    },
+    {
+      "name": "case_convert",
+      "description": "Convert text between different case styles: upper, lower, title, snake, kebab, camel, or pascal.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text", "style"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to convert" },
+          "style": { "type": "string", "enum": ["upper", "lower", "title", "snake", "kebab", "camel", "pascal"], "description": "Target case style" }
+        }
+      }
+    },
+    {
+      "name": "slugify",
+      "description": "Convert text into a URL-friendly slug (lowercase, hyphens instead of spaces, special characters removed).",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to slugify" }
+        }
+      }
+    },
+    {
+      "name": "extract_urls",
+      "description": "Extract all URLs (http/https) from a block of text. Returns the list of URLs found.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to scan for URLs" }
+        }
+      }
+    },
+    {
+      "name": "extract_emails",
+      "description": "Extract all email addresses from a block of text. Returns the list of addresses found.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to scan for email addresses" }
+        }
+      }
+    }
+  ]
+}

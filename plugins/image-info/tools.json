@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {
+      "name": "image_info",
+      "description": "Inspect image metadata — format, dimensions, color mode, and file size. Accepts a base64-encoded image string or a URL. Only reads headers, not full image data. Use for questions like 'what size is this image' or 'what format is this image file'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["input"],
+        "properties": {
+          "input": { "type": "string", "description": "Either a base64-encoded image (with or without data URI prefix) or an http/https URL to an image" }
+        }
+      }
+    }
+  ]
+}

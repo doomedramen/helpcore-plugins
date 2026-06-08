@@ -1,0 +1,6 @@
+id = "text-utils"
+name = "Text Utilities"
+version = "0.1.1"
+description = "String manipulation toolkit — base64, hashing, UUIDs, JSON formatting, case conversion, and more"
+tier = "wasm"
+permissions = []

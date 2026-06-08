@@ -1,0 +1,38 @@
+{
+  "tools": [
+    {
+      "name": "food_search",
+      "description": "Search for a food product and get its nutritional information including calories, protein, fat, carbs, fiber, sugar, and salt per serving. Data from Open Food Facts, a free open database of food products worldwide. Use for questions like 'how many calories in a banana', 'nutrition for almond milk', or 'is this high in protein'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["food"],
+        "properties": {
+          "food": { "type": "string", "description": "The food or product name to look up, e.g. 'banana', 'almond milk', 'chicken breast', 'oreo cookies'" }
+        }
+      }
+    },
+    {
+      "name": "barcode_lookup",
+      "description": "Look up a food product by its barcode (EAN/UPC) and return full nutritional information, ingredients, and allergens. Use when a user provides a barcode number.",
+      "input_schema": {
+        "type": "object",
+        "required": ["barcode"],
+        "properties": {
+          "barcode": { "type": "string", "description": "The barcode number (EAN-13 or UPC), e.g. '3017620422003' for Nutella" }
+        }
+      }
+    },
+    {
+      "name": "compare_foods",
+      "description": "Compare the nutritional values of two foods side by side. Use when the user asks to compare foods, e.g. 'which is healthier, rice or pasta' or 'compare almond milk vs oat milk'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["food1", "food2"],
+        "properties": {
+          "food1": { "type": "string", "description": "First food to compare" },
+          "food2": { "type": "string", "description": "Second food to compare" }
+        }
+      }
+    }
+  ]
+}

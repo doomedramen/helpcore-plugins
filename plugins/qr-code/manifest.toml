@@ -1,0 +1,6 @@
+id = "qr-code"
+name = "QR Code Generator"
+version = "0.1.1"
+description = "Generate QR codes from text or URLs — output as ASCII art or SVG"
+tier = "wasm"
+permissions = []

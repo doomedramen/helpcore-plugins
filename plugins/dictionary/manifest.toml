@@ -1,0 +1,9 @@
+id = "dictionary"
+name = "Dictionary"
+version = "0.1.1"
+description = "Look up word definitions, phonetics, audio pronunciations, synonyms, and antonyms — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "api.dictionaryapi.dev",
+]

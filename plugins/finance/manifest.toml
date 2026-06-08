@@ -1,0 +1,10 @@
+id = "finance"
+name = "Finance"
+version = "0.1.1"
+description = "Stock and cryptocurrency price quotes — no API key required"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "query1.finance.yahoo.com",
+    "api.coingecko.com",
+]

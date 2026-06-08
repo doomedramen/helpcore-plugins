@@ -1,0 +1,9 @@
+id = "nutrition-facts"
+name = "Nutrition Facts"
+version = "0.1.1"
+description = "Look up nutritional information for foods — calories, macros, allergens — powered by Open Food Facts"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "world.openfoodfacts.org",
+]

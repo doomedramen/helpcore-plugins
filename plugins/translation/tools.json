@@ -1,0 +1,37 @@
+{
+  "tools": [
+    {
+      "name": "translate",
+      "description": "Translate text from one language to another using LibreTranslate. Use for questions like 'translate hello to Spanish' or 'what does this say in English: bonjour le monde'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text", "target"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to translate" },
+          "target": { "type": "string", "description": "Target language code, e.g. 'en', 'es', 'fr', 'de', 'ja', 'zh'" },
+          "source": { "type": "string", "description": "Source language code (default: 'auto' for auto-detection)" }
+        }
+      }
+    },
+    {
+      "name": "detect_language",
+      "description": "Detect the language of a given text. Use for questions like 'what language is this written in'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text to detect the language of" }
+        }
+      }
+    },
+    {
+      "name": "list_languages",
+      "description": "List the languages available for translation. Use when you need to look up a language code or show the user what languages are supported.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      }
+    }
+  ]
+}

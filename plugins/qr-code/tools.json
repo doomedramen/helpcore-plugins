@@ -1,0 +1,16 @@
+{
+  "tools": [
+    {
+      "name": "qr_generate",
+      "description": "Generate a QR code from text or a URL. Output as a base64 data URI image (for web), a 0/1 matrix (for CLI/TUI rendering), or ASCII block art (for terminal display). Use for questions like 'generate a QR code for https://example.com' or 'make a QR code that says hello world'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "The text or URL to encode in the QR code" },
+          "format": { "type": "string", "enum": ["png", "ascii", "matrix"], "description": "Output format — 'png' for a base64 data URI image (use in web, embed as ![QR](data:...)), 'ascii' for terminal-friendly block characters (█), 'matrix' for a compact 0/1 grid (for programmatic CLI/TUI rendering, each row on a line)" }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "tools": [
+    {
+      "name": "random_joke",
+      "description": "Get a random joke. Can be a general joke, a programming joke, or a Chuck Norris joke. Use when the user asks for a joke or something funny.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "type": { "type": "string", "enum": ["general", "programming", "chuck"], "description": "Type of joke (default: 'general' for a random joke)" }
+        }
+      }
+    },
+    {
+      "name": "random_fact",
+      "description": "Get a random fun/interesting fact or trivia. Use when the user asks for an interesting fact, 'tell me something interesting', or 'did you know' type questions.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "language": { "type": "string", "enum": ["en", "de"], "description": "Language for the fact (default: 'en')" }
+        }
+      }
+    },
+    {
+      "name": "random_quote",
+      "description": "Get a random inspirational or famous quote with author attribution. Use when the user asks for a quote, motivation, or wisdom.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "tag": { "type": "string", "description": "Optional tag to filter quotes by topic, e.g. 'wisdom', 'love', 'success', 'motivational'" }
+        }
+      }
+    }
+  ]
+}

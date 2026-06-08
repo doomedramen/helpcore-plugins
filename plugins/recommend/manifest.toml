@@ -1,0 +1,16 @@
+id = "recommend"
+name = "Recommend"
+version = "0.1.1"
+description = "Get recommendations for music, movies, TV shows, books, games, and more based on things you like — powered by TasteDive"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "tastedive.com",
+]
+
+[[config_schema]]
+key = "api_key"
+label = "TasteDive API Key"
+type = "secret"
+required = false
+hint = "Optional — get a free key at https://tastedive.com/read/api for higher rate limits"

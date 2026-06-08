@@ -1,0 +1,64 @@
+{
+  "tools": [
+    {
+      "name": "csv_to_json",
+      "description": "Convert CSV data to a JSON array of objects. First row is used as headers. Handles quoted fields and escaped commas. Use when the user has CSV data and wants JSON.",
+      "input_schema": {
+        "type": "object", "required": ["csv"],
+        "properties": {
+          "csv": { "type": "string", "description": "The CSV text to convert" }
+        }
+      }
+    },
+    {
+      "name": "json_to_csv",
+      "description": "Convert a JSON array of objects to CSV format. Object keys become the header row. Use when the user has JSON data and wants CSV.",
+      "input_schema": {
+        "type": "object", "required": ["json"],
+        "properties": {
+          "json": { "type": "string", "description": "A JSON string containing an array of objects, e.g. '[{\"name\":\"Alice\",\"age\":30}]'" }
+        }
+      }
+    },
+    {
+      "name": "yaml_to_json",
+      "description": "Convert YAML to JSON. Supports basic YAML: key-value pairs, nested objects, lists, and multi-line strings. Use when converting YAML config or data to JSON.",
+      "input_schema": {
+        "type": "object", "required": ["yaml"],
+        "properties": {
+          "yaml": { "type": "string", "description": "The YAML text to convert" }
+        }
+      }
+    },
+    {
+      "name": "json_to_yaml",
+      "description": "Convert a JSON object or array to YAML format. Produces clean, indented YAML output. Use when generating config files or human-readable data.",
+      "input_schema": {
+        "type": "object", "required": ["json"],
+        "properties": {
+          "json": { "type": "string", "description": "A JSON string to convert to YAML" }
+        }
+      }
+    },
+    {
+      "name": "xml_to_json",
+      "description": "Convert basic XML to a JSON structure. Attributes become '@attr' keys, text content becomes '#text', and child elements become nested objects. Use for converting simple XML data to JSON.",
+      "input_schema": {
+        "type": "object", "required": ["xml"],
+        "properties": {
+          "xml": { "type": "string", "description": "The XML text to convert to JSON" }
+        }
+      }
+    },
+    {
+      "name": "markdown_to_html",
+      "description": "Convert Markdown text to HTML. Supports headings, bold, italic, links, images, code blocks (fenced and inline), lists, and horizontal rules. Use for rendering Markdown to display in HTML pages.",
+      "input_schema": {
+        "type": "object", "required": ["markdown"],
+        "properties": {
+          "markdown": { "type": "string", "description": "The Markdown text to convert to HTML" }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+id = "movies-tv"
+name = "Movies & TV"
+version = "0.1.1"
+description = "Search for movies and TV shows — get ratings, cast, plot summaries, and streaming info — powered by TMDB"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "api.themoviedb.org",
+    "image.tmdb.org",
+]
+
+[[config_schema]]
+key = "api_key"
+label = "TMDB API Key"
+type = "secret"
+required = true
+hint = "Get a free API key at https://www.themoviedb.org/settings/api"

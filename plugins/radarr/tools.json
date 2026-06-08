@@ -1,0 +1,51 @@
+{
+  "tools": [
+    {
+      "name": "radarr_search",
+      "description": "Search for a movie in Radarr. Returns matching movies with year, status (downloaded/missing), and TMDB ID. Use for questions like 'do I have Inception in Radarr' or 'search for The Matrix'.",
+      "input_schema": {
+        "type": "object", "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "Movie title to search for" }
+        }
+      }
+    },
+    {
+      "name": "radarr_add",
+      "description": "Add a movie to Radarr's download queue. Use when the user says 'add Inception to Radarr' or 'download The Matrix'. Confirms before adding.",
+      "input_schema": {
+        "type": "object", "required": ["tmdb_id"],
+        "properties": {
+          "tmdb_id": { "type": "number", "description": "The TMDB movie ID to add" },
+          "quality_profile_id": { "type": "number", "description": "Quality profile ID (optional, uses default if not specified)" },
+          "monitored": { "type": "boolean", "description": "Whether to monitor for this movie (default: true)" }
+        }
+      }
+    },
+    {
+      "name": "radarr_calendar",
+      "description": "Show upcoming movies on Radarr's calendar — releases, downloads, etc. Use for 'what movies are coming up' or 'show Radarr calendar'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "days": { "type": "number", "description": "Number of days to look ahead (default: 14)" }
+        }
+      }
+    },
+    {
+      "name": "radarr_wanted",
+      "description": "Show movies that are monitored but missing (not yet downloaded). Use for 'what movies are still missing' or 'show wanted list'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "count": { "type": "number", "description": "Maximum number to show (default: 20)" }
+        }
+      }
+    },
+    {
+      "name": "radarr_quality_profiles",
+      "description": "List available quality profiles (useful before adding a movie so you know which profile IDs exist). Use when the user needs to know what quality profiles are available.",
+      "input_schema": { "type": "object", "required": [], "properties": {} }
+    }
+  ]
+}

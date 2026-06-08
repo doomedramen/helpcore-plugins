@@ -1,0 +1,46 @@
+{
+  "tools": [
+    {
+      "name": "seerr_search",
+      "description": "Search for movies, TV shows, or people in Seerr. Use for questions like 'search for Dune in Overseerr' or 'find sci-fi movies'.",
+      "input_schema": {
+        "type": "object", "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "Search term — movie title, show name, or person" }
+        }
+      }
+    },
+    {
+      "name": "seerr_request",
+      "description": "Submit a media request through Seerr. Use when the user says 'request Inception' or 'I want to watch The Matrix, can you request it'. Always confirm before submitting.",
+      "input_schema": {
+        "type": "object", "required": ["media_type", "tmdb_id"],
+        "properties": {
+          "media_type": { "type": "string", "enum": ["movie", "tv"], "description": "Type of media to request" },
+          "tmdb_id": { "type": "number", "description": "The TMDB ID of the movie or TV show" },
+          "seasons": { "type": "string", "description": "For TV shows: 'all' or specific seasons like '1,2,3' (default: 'all')" }
+        }
+      }
+    },
+    {
+      "name": "seerr_trending",
+      "description": "Show trending/popular movies and TV shows from Seerr. Use for 'what's trending' or 'what's popular right now'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "count": { "type": "number", "description": "Number of items (default: 10, max: 20)" }
+        }
+      }
+    },
+    {
+      "name": "seerr_requests",
+      "description": "Check the status of recent media requests. Use for 'show my requests' or 'what's the status of my requests'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "count": { "type": "number", "description": "Number to show (default: 10)" }
+        }
+      }
+    }
+  ]
+}

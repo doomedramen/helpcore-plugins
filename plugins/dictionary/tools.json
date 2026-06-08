@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {
+      "name": "define",
+      "description": "Look up the definition(s), phonetics, part of speech, and example usage for an English word. Returns meanings grouped by part of speech with definitions, examples, synonyms, and antonyms. Use for questions like 'what does serendipity mean' or 'define ephemeral'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["word"],
+        "properties": {
+          "word": { "type": "string", "description": "The English word to look up, e.g. 'serendipity', 'ephemeral', 'ubiquitous'" }
+        }
+      }
+    }
+  ]
+}

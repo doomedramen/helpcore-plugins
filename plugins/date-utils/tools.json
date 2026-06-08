@@ -1,0 +1,85 @@
+{
+  "tools": [
+    {
+      "name": "day_of_week",
+      "description": "Get the day of the week for a given date. Use for questions like 'what day was July 4 1776' or 'what day of the week is Christmas this year'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["date"],
+        "properties": {
+          "date": { "type": "string", "description": "Date in YYYY-MM-DD format, e.g. '2026-12-25' or '1776-07-04'" }
+        }
+      }
+    },
+    {
+      "name": "week_number",
+      "description": "Get the ISO 8601 week number for a given date. Use for questions like 'what week of the year is March 15'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["date"],
+        "properties": {
+          "date": { "type": "string", "description": "Date in YYYY-MM-DD format, e.g. '2026-03-15'" }
+        }
+      }
+    },
+    {
+      "name": "date_diff",
+      "description": "Calculate the difference between two dates in days, weeks, months, or years. Use for questions like 'how many days until Christmas' or 'how old is someone born on 1990-05-15'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["date1", "date2"],
+        "properties": {
+          "date1": { "type": "string", "description": "First date in YYYY-MM-DD format" },
+          "date2": { "type": "string", "description": "Second date in YYYY-MM-DD format" },
+          "unit": { "type": "string", "enum": ["days", "weeks", "months", "years"], "description": "Unit for the result (default: days)" }
+        }
+      }
+    },
+    {
+      "name": "date_add",
+      "description": "Add or subtract days/weeks/months/years from a date. Use for questions like 'what date is 90 days from now' or 'what was the date 3 weeks ago'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["date", "amount", "unit"],
+        "properties": {
+          "date": { "type": "string", "description": "Starting date in YYYY-MM-DD format" },
+          "amount": { "type": "number", "description": "Number of units to add (negative to subtract)" },
+          "unit": { "type": "string", "enum": ["days", "weeks", "months", "years"], "description": "Unit to add" }
+        }
+      }
+    },
+    {
+      "name": "unix_to_date",
+      "description": "Convert a Unix timestamp (seconds since 1970-01-01) to a human-readable UTC date. Use for questions like 'what date is timestamp 1700000000'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["timestamp"],
+        "properties": {
+          "timestamp": { "type": "number", "description": "Unix timestamp in seconds" }
+        }
+      }
+    },
+    {
+      "name": "date_to_unix",
+      "description": "Convert a date to a Unix timestamp (seconds since 1970-01-01 UTC). Use for questions like 'what is the Unix timestamp for 2026-01-01'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["date"],
+        "properties": {
+          "date": { "type": "string", "description": "Date in YYYY-MM-DD format, e.g. '2026-01-01'" }
+        }
+      }
+    },
+    {
+      "name": "is_leap_year",
+      "description": "Check whether a given year is a leap year. Use for questions like 'is 2024 a leap year' or 'was 1900 a leap year'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["year"],
+        "properties": {
+          "year": { "type": "number", "description": "The year to check, e.g. 2024" }
+        }
+      }
+    }
+  ]
+}

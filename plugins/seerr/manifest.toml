@@ -1,0 +1,21 @@
+id = "seerr"
+name = "Seerr"
+version = "0.1.1"
+description = "Request movies and TV shows through Overseerr/Jellyseerr — search, discover trending content, and submit requests"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = ["*"]
+
+[[config_schema]]
+key = "url"
+label = "Seerr URL"
+type = "url"
+required = true
+hint = "e.g. http://192.168.1.100:5055"
+
+[[config_schema]]
+key = "api_key"
+label = "API Key"
+type = "secret"
+required = true
+hint = "Find in Seerr → Settings → General → API Key"

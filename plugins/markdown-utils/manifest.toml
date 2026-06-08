@@ -1,0 +1,6 @@
+id = "markdown-utils"
+name = "Markdown Utilities"
+version = "0.1.1"
+description = "Process Markdown text — render to plain text, extract links, headings, code blocks, and tables"
+tier = "wasm"
+permissions = []

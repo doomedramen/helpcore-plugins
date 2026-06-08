@@ -1,0 +1,17 @@
+{
+  "tools": [
+    {
+      "name": "recommend",
+      "description": "Get recommendations for music artists, movies, TV shows, books, games, authors, or podcasts based on things you like. Powered by TasteDive. Use for questions like 'I like Queens of the Stone Age, suggest similar artists', 'recommend movies like Inception', or 'what books are similar to Dune'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["query", "type"],
+        "properties": {
+          "query": { "type": "string", "description": "The name of the item to get recommendations for, e.g. 'Queens of the Stone Age', 'Inception', 'Dune'" },
+          "type": { "type": "string", "enum": ["music", "movies", "shows", "books", "authors", "games", "podcasts"], "description": "The type of media to search for recommendations in" },
+          "limit": { "type": "number", "description": "Maximum number of recommendations to return (default: 10, max: 20)" }
+        }
+      }
+    }
+  ]
+}

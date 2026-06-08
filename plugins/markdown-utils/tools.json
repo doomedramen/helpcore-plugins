@@ -1,0 +1,48 @@
+{
+  "tools": [
+    {
+      "name": "md_to_text",
+      "description": "Convert Markdown text to plain text by stripping all formatting — headers, bold, italic, links, images, code, lists, blockquotes, and tables. Use when you need readable plain text from Markdown content.",
+      "input_schema": {
+        "type": "object",
+        "required": ["markdown"],
+        "properties": {
+          "markdown": { "type": "string", "description": "The Markdown text to convert" }
+        }
+      }
+    },
+    {
+      "name": "md_extract_links",
+      "description": "Extract all links from Markdown text — both [text](url) inline links and bare http/https URLs. Use for questions like 'what URLs are referenced in this document'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["markdown"],
+        "properties": {
+          "markdown": { "type": "string", "description": "The Markdown text to scan for links" }
+        }
+      }
+    },
+    {
+      "name": "md_extract_headings",
+      "description": "Extract all headings from Markdown text with their level (1-6) and text. Use for questions like 'what sections does this document have' or 'generate a table of contents'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["markdown"],
+        "properties": {
+          "markdown": { "type": "string", "description": "The Markdown text to scan for headings" }
+        }
+      }
+    },
+    {
+      "name": "md_extract_code_blocks",
+      "description": "Extract all fenced code blocks from Markdown text with their language tag. Use when you need to find code examples in a Markdown document.",
+      "input_schema": {
+        "type": "object",
+        "required": ["markdown"],
+        "properties": {
+          "markdown": { "type": "string", "description": "The Markdown text to scan for code blocks" }
+        }
+      }
+    }
+  ]
+}

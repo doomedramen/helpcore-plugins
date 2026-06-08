@@ -1,0 +1,47 @@
+{
+  "tools": [
+    {
+      "name": "sonarr_search",
+      "description": "Search for a TV show in Sonarr. Returns matching shows with year, status, and TVDB ID. Use for questions like 'do I have Breaking Bad in Sonarr' or 'search for Stranger Things'.",
+      "input_schema": {
+        "type": "object", "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "TV show name to search for" }
+        }
+      }
+    },
+    {
+      "name": "sonarr_add",
+      "description": "Add a TV show to Sonarr's download queue. Use when the user says 'add Breaking Bad to Sonarr' or 'download Stranger Things'.",
+      "input_schema": {
+        "type": "object", "required": ["tvdb_id", "title"],
+        "properties": {
+          "tvdb_id": { "type": "number", "description": "The TVDB series ID to add" },
+          "title": { "type": "string", "description": "Title of the show (for confirmation)" },
+          "quality_profile_id": { "type": "number", "description": "Quality profile ID (optional)" },
+          "monitored": { "type": "boolean", "description": "Monitor all seasons (default: true)" }
+        }
+      }
+    },
+    {
+      "name": "sonarr_calendar",
+      "description": "Show upcoming TV episodes on Sonarr's calendar. Use for 'what episodes are coming up' or 'show Sonarr calendar'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "days": { "type": "number", "description": "Days to look ahead (default: 14)" }
+        }
+      }
+    },
+    {
+      "name": "sonarr_wanted",
+      "description": "Show episodes that are monitored but missing. Use for 'what episodes are still missing' or 'show wanted list'.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "count": { "type": "number", "description": "Max to show (default: 20)" }
+        }
+      }
+    }
+  ]
+}

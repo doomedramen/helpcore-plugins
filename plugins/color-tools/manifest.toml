@@ -1,0 +1,9 @@
+id = "color-tools"
+name = "Color Tools"
+version = "0.1.1"
+description = "Convert between color formats (hex, RGB, HSL, CMYK) and generate color harmonies"
+tier = "wasm"
+permissions = ["outbound_http"]
+allowed_hosts = [
+    "www.thecolorapi.com",
+]

@@ -1,0 +1,60 @@
+{
+  "tools": [
+    {
+      "name": "meal_search",
+      "description": "Search for meals/recipes by name. Returns matching meals with their category, area (cuisine), thumbnail, and a list of ingredients. Use for questions like 'find me a chicken tikka masala recipe' or 'how do I make lasagna'. Also use for browsing meal categories or getting a random meal suggestion.",
+      "input_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "Meal name to search for, e.g. 'chicken tikka', 'lasagna', 'pad thai'. Use 'random' for a random meal suggestion." }
+        }
+      }
+    },
+    {
+      "name": "meal_by_ingredient",
+      "description": "Find meals that can be made with a specific main ingredient. Use for questions like 'what can I make with chicken' or 'I have salmon, what recipes can I cook'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["ingredient"],
+        "properties": {
+          "ingredient": { "type": "string", "description": "A main ingredient to search by, e.g. 'chicken_breast', 'salmon', 'pasta', 'rice'" }
+        }
+      }
+    },
+    {
+      "name": "meal_detail",
+      "description": "Get full cooking instructions and the complete ingredient list with measurements for a specific meal. Use after `meal_search` when the user wants the full recipe.",
+      "input_schema": {
+        "type": "object",
+        "required": ["meal_id"],
+        "properties": {
+          "meal_id": { "type": "string", "description": "The meal ID returned by meal_search, e.g. '52772'" }
+        }
+      }
+    },
+    {
+      "name": "meal_plan",
+      "description": "Generate a random weekly meal plan. Creates a plan with random meals assigned to each day and meal slot (breakfast/lunch/dinner by default). Use for questions like 'plan my meals this week', 'what should I eat this week', or 'give me a 5-day meal plan'.",
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "days": { "type": "integer", "description": "Number of days to plan for (1-14, default 7)" },
+          "meals_per_day": { "type": "integer", "description": "Number of meals per day (1-5, default 3: breakfast, lunch, dinner)" }
+        }
+      }
+    },
+    {
+      "name": "shopping_list",
+      "description": "Generate a categorized shopping list from meal IDs. Takes comma-separated meal IDs and returns ingredients grouped by category (Produce, Dairy, Meat, Bakery, Pantry, Other) with merged quantities. Use after meal_plan or meal_search to get a consolidated shopping list.",
+      "input_schema": {
+        "type": "object",
+        "required": ["meal_ids"],
+        "properties": {
+          "meal_ids": { "type": "string", "description": "Comma-separated list of meal IDs, e.g. '52772,52807,52940'" }
+        }
+      }
+    }
+  ]
+}

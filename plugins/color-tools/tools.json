@@ -1,0 +1,38 @@
+{
+  "tools": [
+    {
+      "name": "color_convert",
+      "description": "Convert a color between formats: hex (#RRGGBB), RGB, HSL, and CMYK. Use for questions like 'what is #ff5733 in HSL' or 'convert rgb(255,100,50) to hex'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["color"],
+        "properties": {
+          "color": { "type": "string", "description": "A color value in any of these formats: hex (#ff5733, #FF5733, or ff5733), RGB (rgb(255, 87, 51) or 255,87,51), HSL (hsl(15, 100%, 60%) or 15,100,60), or named CSS color (red, navy, coral). Case-insensitive." }
+        }
+      }
+    },
+    {
+      "name": "color_scheme",
+      "description": "Generate a color harmony from a base color. Returns complementary, triadic, analogous, split-complementary, square, and monochromatic schemes. Use for questions like 'what colors go well with #3498db' or 'suggest a color palette based on coral'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["color"],
+        "properties": {
+          "color": { "type": "string", "description": "Base color in any format (hex, RGB, HSL, or name)" },
+          "scheme": { "type": "string", "enum": ["complementary", "triadic", "analogous", "split-complementary", "square", "monochromatic", "all"], "description": "Color scheme type (default: 'all' to show all schemes)" }
+        }
+      }
+    },
+    {
+      "name": "color_name",
+      "description": "Get the closest named CSS color for a given hex/RGB value. Use for questions like 'what is this color: #8B4513' (returns 'SaddleBrown').",
+      "input_schema": {
+        "type": "object",
+        "required": ["color"],
+        "properties": {
+          "color": { "type": "string", "description": "A color value in hex or RGB format" }
+        }
+      }
+    }
+  ]
+}

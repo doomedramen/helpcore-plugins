@@ -1,0 +1,27 @@
+{
+  "tools": [
+    {
+      "name": "stock_quote",
+      "description": "Get the current price and daily change for a stock by ticker symbol. Data from Yahoo Finance. Use for questions like 'what is the AAPL stock price' or 'how is TSLA doing today'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["symbol"],
+        "properties": {
+          "symbol": { "type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'TSLA', 'GOOGL', 'MSFT'" }
+        }
+      }
+    },
+    {
+      "name": "crypto_quote",
+      "description": "Get the current price and 24h change for a cryptocurrency. Data from CoinGecko. Use for questions like 'what is the Bitcoin price' or 'how is Ethereum doing'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["coin"],
+        "properties": {
+          "coin": { "type": "string", "description": "Cryptocurrency name or symbol, e.g. 'bitcoin', 'ethereum', 'solana', 'btc', 'eth'" },
+          "currency": { "type": "string", "description": "Fiat currency to quote in, e.g. 'usd', 'eur', 'gbp' (default: usd)" }
+        }
+      }
+    }
+  ]
+}

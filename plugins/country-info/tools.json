@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {
+      "name": "country_lookup",
+      "description": "Look up detailed information about a country by name, ISO code, or partial name. Returns population, capital, region, currency, languages, flag image URL, timezones, borders, and more. Use for questions like 'what is the capital of Brazil', 'tell me about Japan', or 'what currency does Norway use'.",
+      "input_schema": {
+        "type": "object",
+        "required": ["country"],
+        "properties": {
+          "country": { "type": "string", "description": "Country name, ISO 3166-1 alpha-2 code (e.g. 'JP'), or alpha-3 code (e.g. 'JPN'). Partial name matching is supported, e.g. 'united' will match 'United States' and 'United Kingdom'." }
+        }
+      }
+    }
+  ]
+}
