@@ -39,6 +39,12 @@
             "enum": ["outbound_http", "user_data_read", "user_data_write", "conversations_read"]
           }
         },
+        "allowed_hosts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" },
+          "description": "Hosts the plugin may contact. Use specific hostnames (e.g. \"api.example.com\") or \"*\" only when the plugin connects to a user-configured endpoint. When present, must exactly match the allowed_hosts in the package manifest.toml."
+        },
         "provides": {
           "type": "array",
           "uniqueItems": true,
