@@ -36,7 +36,7 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "enum": ["outbound_http", "user_data_read", "user_data_write", "conversations_read"]
+            "enum": ["outbound_http", "user_data_read", "user_data_write", "conversations_read", "read_secrets"]
           }
         },
         "allowed_hosts": {
