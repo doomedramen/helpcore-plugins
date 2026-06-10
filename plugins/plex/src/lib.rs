@@ -53,8 +53,13 @@ fn load_config() -> Result<Config, String> {
     let url = host::config_read("url").map_err(|_| {
         "Plex server URL is not configured. Set it in the plugin settings.".to_string()
     })?;
-    let token = host::secret_read("token")
-        .map_err(|_| "Plex token is not configured. Set it in the plugin settings.".to_string())?;
+    let token = host::secret_read("token").map_err(|e| {
+        if e.contains("not approved") {
+            e
+        } else {
+            "Plex token is not configured. Set it in the plugin settings.".to_string()
+        }
+    })?;
     Ok(Config {
         url: url.trim_end_matches('/').to_string(),
         token,

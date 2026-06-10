@@ -1,6 +1,6 @@
 id = "sonarr"
 name = "Sonarr"
-version = "0.1.4"
+version = "0.1.5"
 description = "Manage your Sonarr TV show download queue — search, add series, and check download status"
 tier = "wasm"
 permissions = ["outbound_http", "read_secrets"]

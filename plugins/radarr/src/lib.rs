@@ -69,8 +69,12 @@ fn load_config() -> Result<Config, String> {
     let url = host::config_read("url")
         .map_err(|_| "Radarr URL is not configured. Set it in the plugin settings.".to_string())?;
     let url = url.trim_end_matches('/').to_string();
-    let api_key = host::secret_read("api_key").map_err(|_| {
-        "Radarr API key is not configured. Set it in the plugin settings.".to_string()
+    let api_key = host::secret_read("api_key").map_err(|e| {
+        if e.contains("not approved") {
+            e
+        } else {
+            "Radarr API key is not configured. Set it in the plugin settings.".to_string()
+        }
     })?;
     Ok(Config { url, api_key })
 }

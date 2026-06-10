@@ -88,7 +88,13 @@ fn http_get(url: &str) -> Result<String, String> {
 }
 
 fn get_api_key() -> Result<String, String> {
-    host::secret_read("api_key").map_err(|_| "TMDB API key not configured. Get a free key at https://www.themoviedb.org/settings/api and add it to your plugin settings.".to_string())
+    host::secret_read("api_key").map_err(|e| {
+        if e.contains("not approved") {
+            e
+        } else {
+            "TMDB API key not configured. Get a free key at https://www.themoviedb.org/settings/api and add it to your plugin settings.".to_string()
+        }
+    })
 }
 
 fn tmdb_get(path: &str) -> Result<String, String> {
