@@ -244,6 +244,20 @@ fn search(input: &Value) -> Result<String, String> {
         return Ok(format!("No movies found for \"{query}\"."));
     }
 
+    // Fetch library to cross-reference ownership status
+    let library_status: Vec<(u64, bool, bool)> = api_get(&config, "movie?pageSize=50")
+        .ok()
+        .and_then(|d| d.as_array().cloned())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|m| {
+            let tmdb = m.get("tmdbId").and_then(Value::as_u64)?;
+            let has_file = m.get("hasFile").and_then(Value::as_bool).unwrap_or(false);
+            let monitored = m.get("monitored").and_then(Value::as_bool).unwrap_or(false);
+            Some((tmdb, has_file, monitored))
+        })
+        .collect();
+
     // Rank: exact title match first, then by popularity/vote count descending
     let query_lower = query.to_lowercase();
     results.sort_by(|a, b| {
@@ -273,14 +287,25 @@ fn search(input: &Value) -> Result<String, String> {
             .and_then(Value::as_u64)
             .map_or_else(|| "—".into(), |id| id.to_string());
         let in_cinemas = str_or(item, "inCinemas", "?");
-        let status = item
-            .get("status")
-            .and_then(Value::as_str)
-            .map(|s| format!(" | Status: {s}"))
-            .unwrap_or_default();
+
+        // Ownership status
+        let lib_status = item
+            .get("tmdbId")
+            .and_then(Value::as_u64)
+            .and_then(|tid| library_status.iter().find(|(id, _, _)| *id == tid))
+            .map(|(_, has_file, monitored)| {
+                if *has_file {
+                    " ✅ In library"
+                } else if *monitored {
+                    " 📥 Monitored (missing)"
+                } else {
+                    " 📋 In library (unmonitored)"
+                }
+            })
+            .unwrap_or("");
 
         out.push_str(&format!(
-            "\n\n  {title} ({year})\n  TMDB ID: {tmdb_id} | In Cinemas: {in_cinemas}{status}"
+            "\n\n  {title} ({year}){lib_status}\n  TMDB ID: {tmdb_id} | In Cinemas: {in_cinemas}"
         ));
     }
     if results.len() > 8 {
