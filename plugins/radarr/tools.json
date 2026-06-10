@@ -46,6 +46,16 @@
       "name": "radarr_quality_profiles",
       "description": "List available quality profiles (useful before adding a movie so you know which profile IDs exist). Use when the user needs to know what quality profiles are available.",
       "input_schema": { "type": "object", "required": [], "properties": {} }
+    },
+    {
+      "name": "radarr_library",
+      "description": "List movies that are downloaded and available in Radarr. Use for 'what movies do I have in Radarr' or 'show my movie collection'. Opposite of radarr_wanted.",
+      "input_schema": {
+        "type": "object", "required": [],
+        "properties": {
+          "count": { "type": "number", "description": "Maximum number to show (default: 25, max: 25)" }
+        }
+      }
     }
   ]
 }

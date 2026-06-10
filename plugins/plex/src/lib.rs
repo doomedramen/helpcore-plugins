@@ -34,6 +34,7 @@ impl Guest for Plex {
             "plex_search" => plex_search(&input),
             "plex_recently_added" => plex_recently_added(&input),
             "plex_libraries" => plex_libraries(&input),
+            "plex_library_contents" => plex_library_contents(&input),
             "plex_now_playing" => plex_now_playing(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
@@ -861,6 +862,182 @@ fn libraries_from_xml(body: &str) -> Result<String, String> {
         let stype = tag_attr(&tag.attrs, "type").unwrap_or("unknown");
         let key = tag_attr(&tag.attrs, "key").unwrap_or("");
         out.push_str(&format!("  {title} [{}] (key: {key})\n", human_type(stype)));
+    }
+    Ok(out.trim_end().to_string())
+}
+
+// ── plex_library_contents ─────────────────────────────────────────────────────
+
+fn plex_library_contents(input: &Value) -> Result<String, String> {
+    let key = input
+        .get("key")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or("library key is required (get it from plex_libraries)")?;
+
+    let count = input
+        .get("count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(25)
+        .clamp(1, 25) as usize;
+
+    let config = load_config()?;
+    let path = format!("/library/sections/{key}/all?X-Plex-Container-Start=0&X-Plex-Container-Size={count}");
+    let body = plex_get(&path)?;
+
+    if body.trim_start().starts_with('{') {
+        library_contents_from_json(&body, &config, count)
+    } else {
+        library_contents_from_xml(&body, &config, count)
+    }
+}
+
+fn library_contents_from_json(body: &str, config: &Config, count: usize) -> Result<String, String> {
+    let root: Value =
+        serde_json::from_str(body).map_err(|e| format!("failed to parse response: {e}"))?;
+    let container = &root["MediaContainer"];
+    let all_items = items_from_json(container, "Metadata");
+
+    let total = container["totalSize"]
+        .as_u64()
+        .unwrap_or(all_items.len() as u64);
+
+    if all_items.is_empty() {
+        return Ok("Library is empty.".to_string());
+    }
+
+    let header = match container["title2"].as_str() {
+        Some(name) if !name.is_empty() => format!("{name}:\n"),
+        _ => "Library contents:\n".to_string(),
+    };
+    let mut out = header;
+
+    for item in all_items.iter().take(count) {
+        let title = item["title"].as_str().unwrap_or("");
+        let year = item["year"]
+            .as_u64()
+            .map(|y| y.to_string())
+            .unwrap_or_default();
+        let ptype = item["type"].as_str().unwrap_or("");
+        let summary = item["summary"].as_str().unwrap_or("");
+        let thumb = item["thumb"].as_str().unwrap_or("");
+        let grandparent = item["grandparentTitle"].as_str().unwrap_or("");
+        let parent = item["parentTitle"].as_str().unwrap_or("");
+
+        out.push_str(&format!("  **{title}**"));
+        if !year.is_empty() && year != "0" {
+            out.push_str(&format!(" ({year})"));
+        }
+        match ptype {
+            "track" => {
+                if !grandparent.is_empty() {
+                    out.push_str(&format!(" — {grandparent}"));
+                }
+                if !parent.is_empty() {
+                    out.push_str(&format!(" ({parent})"));
+                }
+            }
+            "episode" => {
+                if !grandparent.is_empty() {
+                    out.push_str(&format!(" — {grandparent}"));
+                }
+            }
+            _ => {}
+        }
+        out.push_str(&format!(" [{}]", human_type(ptype)));
+        if !summary.is_empty() {
+            out.push_str(&format!("\n    {}", truncate(summary, 150)));
+        }
+        if !thumb.is_empty() {
+            out.push_str(&format!("\n    Thumb: {}", thumb_url(config, thumb)));
+        }
+        out.push('\n');
+    }
+
+    if total > count as u64 {
+        out.push_str(&format!("\n… showing {count} of {total} items."));
+    }
+    Ok(out.trim_end().to_string())
+}
+
+fn library_contents_from_xml(body: &str, config: &Config, count: usize) -> Result<String, String> {
+    let tags = parse_xml_tags(body);
+
+    let total = tags
+        .iter()
+        .find(|t| t.name == "MediaContainer")
+        .and_then(|t| tag_attr(&t.attrs, "totalSize"))
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+
+    let lib_name = tags
+        .iter()
+        .find(|t| t.name == "MediaContainer")
+        .and_then(|t| tag_attr(&t.attrs, "title2"))
+        .unwrap_or("");
+
+    let items: Vec<&Tag> = tags
+        .iter()
+        .filter(|t| {
+            t.depth == 1
+                && (t.name == "Video" || t.name == "Directory" || t.name == "Track")
+                && t.self_closing
+        })
+        .take(count)
+        .collect();
+
+    if items.is_empty() {
+        return Ok("Library is empty.".to_string());
+    }
+
+    let header = if lib_name.is_empty() {
+        "Library contents:\n".to_string()
+    } else {
+        format!("{lib_name}:\n")
+    };
+    let mut out = header;
+
+    for tag in items {
+        let title = tag_attr(&tag.attrs, "title").unwrap_or("Unknown");
+        let year = tag_attr(&tag.attrs, "year").unwrap_or("");
+        let ptype = tag_attr(&tag.attrs, "type").unwrap_or("");
+        let summary = tag_attr(&tag.attrs, "summary").unwrap_or("");
+        let thumb = tag_attr(&tag.attrs, "thumb").unwrap_or("");
+        let grandparent = tag_attr(&tag.attrs, "grandparentTitle").unwrap_or("");
+        let parent = tag_attr(&tag.attrs, "parentTitle").unwrap_or("");
+
+        out.push_str(&format!("  **{title}**"));
+        if !year.is_empty() && year != "0" {
+            out.push_str(&format!(" ({year})"));
+        }
+        match ptype {
+            "track" => {
+                if !grandparent.is_empty() {
+                    out.push_str(&format!(" — {grandparent}"));
+                }
+                if !parent.is_empty() {
+                    out.push_str(&format!(" ({parent})"));
+                }
+            }
+            "episode" => {
+                if !grandparent.is_empty() {
+                    out.push_str(&format!(" — {grandparent}"));
+                }
+            }
+            _ => {}
+        }
+        out.push_str(&format!(" [{}]", human_type(ptype)));
+        if !summary.is_empty() {
+            out.push_str(&format!("\n    {}", truncate(summary, 150)));
+        }
+        if !thumb.is_empty() {
+            out.push_str(&format!("\n    Thumb: {}", thumb_url(config, thumb)));
+        }
+        out.push('\n');
+    }
+
+    if total > count as u64 {
+        out.push_str(&format!("\n… showing {count} of {total} items."));
     }
     Ok(out.trim_end().to_string())
 }

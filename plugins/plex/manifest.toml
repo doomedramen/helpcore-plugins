@@ -1,6 +1,6 @@
 id = "plex"
 name = "Plex"
-version = "0.1.6"
+version = "0.1.7"
 description = "Browse and control your Plex media server — search libraries, see recently added, and check what's playing"
 tier = "wasm"
 permissions = ["outbound_http", "read_secrets"]

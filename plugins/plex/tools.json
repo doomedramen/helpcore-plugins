@@ -28,6 +28,17 @@
       "input_schema": { "type": "object", "required": [], "properties": {} }
     },
     {
+      "name": "plex_library_contents",
+      "description": "List all items in a specific Plex library. Use when the user asks 'what movies do I have on Plex' or 'show me everything in my Films library'. Requires the library key from plex_libraries.",
+      "input_schema": {
+        "type": "object", "required": ["key"],
+        "properties": {
+          "key": { "type": "string", "description": "Library section key (from plex_libraries)" },
+          "count": { "type": "number", "description": "Maximum items to show (default: 25, max: 25)" }
+        }
+      }
+    },
+    {
       "name": "plex_now_playing",
       "description": "Show what's currently playing on the Plex server — who is watching what, and their progress. Use for questions like 'what's playing on Plex right now' or 'who is watching Plex'.",
       "input_schema": { "type": "object", "required": [], "properties": {} }

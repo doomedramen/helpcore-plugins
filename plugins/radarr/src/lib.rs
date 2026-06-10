@@ -36,6 +36,7 @@ impl Guest for Radarr {
             "radarr_calendar" => calendar(&input),
             "radarr_wanted" => wanted(&input),
             "radarr_quality_profiles" => quality_profiles(&input),
+            "radarr_library" => library(&input),
             _ => Err(format!("unknown tool: {tool}")),
         }
     }
@@ -459,6 +460,64 @@ fn wanted(input: &Value) -> Result<String, String> {
     out.push_str(&format!("\n\n{} wanted movie(s).", wanted.len()));
 
     if total_fetched >= count as usize {
+        out.push_str(&format!(
+            " (showing first {count} — increase \"count\" to see more)"
+        ));
+    }
+
+    Ok(out)
+}
+
+// ── radarr_library ─────────────────────────────────────────────────────────────
+
+fn library(input: &Value) -> Result<String, String> {
+    let config = load_config()?;
+    let count = input
+        .get("count")
+        .and_then(Value::as_u64)
+        .unwrap_or(25)
+        .clamp(1, 25);
+
+    let path = format!("movie?sortKey=title&pageSize={count}");
+    let data = api_get(&config, &path)?;
+
+    let movies = data.as_array().ok_or("unexpected movie list response")?;
+
+    let downloaded: Vec<&Value> = movies
+        .iter()
+        .filter(|m| m.get("hasFile").and_then(Value::as_bool).unwrap_or(false))
+        .collect();
+
+    if downloaded.is_empty() {
+        return Ok("No downloaded movies found.".into());
+    }
+
+    let total_fetched = movies.len();
+    let mut out = "Downloaded movies:".to_string();
+    for item in &downloaded {
+        let title = str_or(item, "title", "?");
+        let year = item
+            .get("year")
+            .and_then(Value::as_u64)
+            .map_or_else(|| "—".into(), |y| y.to_string());
+        let quality = str_or(item, "movieFile", "")
+            .is_empty()
+            .then(|| "—".to_string())
+            .or_else(|| {
+                item.get("movieFile")
+                    .and_then(|f| f.get("quality"))
+                    .and_then(|q| q.get("quality"))
+                    .and_then(|n| n.get("name"))
+                    .and_then(Value::as_str)
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "—".to_string());
+
+        out.push_str(&format!("\n\n  {title} ({year})\n  Quality: {quality}"));
+    }
+    out.push_str(&format!("\n\n{} downloaded movie(s).", downloaded.len()));
+
+    if total_fetched >= count as usize && downloaded.len() < total_fetched {
         out.push_str(&format!(
             " (showing first {count} — increase \"count\" to see more)"
         ));
