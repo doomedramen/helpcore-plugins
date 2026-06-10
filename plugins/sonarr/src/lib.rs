@@ -138,8 +138,17 @@ struct HttpResponse {
     body: String,
 }
 
+fn build_url(config: &Config, path: &str) -> String {
+    let mut url = format!("{}/api/v3{path}", config.base_url);
+    match url.contains('?') {
+        true => url.push_str(&format!("&apikey={}", config.api_key)),
+        false => url.push_str(&format!("?apikey={}", config.api_key)),
+    }
+    url
+}
+
 fn http_get(config: &Config, path: &str) -> Result<(u16, String), String> {
-    let url = format!("{}/api/v3{}", config.base_url, path);
+    let url = build_url(config, path);
     let mut headers = serde_json::Map::new();
     headers.insert("Accept".into(), Value::String("application/json".into()));
 
@@ -158,7 +167,7 @@ fn http_get(config: &Config, path: &str) -> Result<(u16, String), String> {
 }
 
 fn http_post_json(config: &Config, path: &str, body: &Value) -> Result<(u16, String), String> {
-    let url = format!("{}/api/v3{}", config.base_url, path);
+    let url = build_url(config, path);
     let mut headers = serde_json::Map::new();
     headers.insert("Accept".into(), Value::String("application/json".into()));
     headers.insert(
