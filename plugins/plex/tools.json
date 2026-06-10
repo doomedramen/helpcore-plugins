@@ -6,7 +6,8 @@
       "input_schema": {
         "type": "object", "required": ["query"],
         "properties": {
-          "query": { "type": "string", "description": "Search term, e.g. 'Inception', 'The Beatles', 'Star Wars'" }
+          "query": { "type": "string", "description": "Search term, e.g. 'Inception', 'The Beatles', 'Star Wars'" },
+          "type": { "type": "string", "enum": ["movie", "show", "music", "all"], "description": "Filter by library type (default: all). Use 'movie' to exclude TV episodes." }
         }
       }
     },

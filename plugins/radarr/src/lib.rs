@@ -171,6 +171,12 @@ fn str_or(val: &Value, key: &str, default: &str) -> String {
         .to_string()
 }
 
+fn num_or(val: &Value, key: &str, default: f64) -> f64 {
+    val.get(key)
+        .and_then(Value::as_f64)
+        .unwrap_or(default)
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
 fn days_since_epoch() -> i64 {
@@ -228,12 +234,30 @@ fn search(input: &Value) -> Result<String, String> {
     let path = format!("movie/lookup?term={}", url_encode(query));
     let data = api_get(&config, &path)?;
 
-    let results = data
+    let mut results: Vec<&Value> = data
         .as_array()
-        .ok_or("unexpected response: expected array")?;
+        .ok_or("unexpected response: expected array")?
+        .iter()
+        .collect();
     if results.is_empty() {
         return Ok(format!("No movies found for \"{query}\"."));
     }
+
+    // Rank: exact title match first, then by popularity/vote count descending
+    let query_lower = query.to_lowercase();
+    results.sort_by(|a, b| {
+        let a_title = str_or(a, "title", "").to_lowercase();
+        let b_title = str_or(b, "title", "").to_lowercase();
+        let a_exact = a_title == query_lower;
+        let b_exact = b_title == query_lower;
+        b_exact
+            .cmp(&a_exact)
+            .then_with(|| {
+                let a_pop = num_or(a, "popularity", 0_f64);
+                let b_pop = num_or(b, "popularity", 0_f64);
+                b_pop.partial_cmp(&a_pop).unwrap_or(std::cmp::Ordering::Equal)
+            })
+    });
 
     let limit = results.len().min(8);
     let mut out = format!("Search results for \"{query}\":");
@@ -396,8 +420,8 @@ fn wanted(input: &Value) -> Result<String, String> {
     let count = input
         .get("count")
         .and_then(Value::as_u64)
-        .unwrap_or(20)
-        .clamp(1, 100);
+        .unwrap_or(15)
+        .clamp(1, 25);
 
     let path = format!("movie?sortKey=title&pageSize={count}");
     let data = api_get(&config, &path)?;
@@ -417,6 +441,7 @@ fn wanted(input: &Value) -> Result<String, String> {
         return Ok("No missing movies — all monitored movies are downloaded.".into());
     }
 
+    let total_fetched = movies.len();
     let mut out = "Wanted (missing) movies:".to_string();
     for item in &wanted {
         let title = str_or(item, "title", "?");
@@ -432,6 +457,12 @@ fn wanted(input: &Value) -> Result<String, String> {
         ));
     }
     out.push_str(&format!("\n\n{} wanted movie(s).", wanted.len()));
+
+    if total_fetched >= count as usize {
+        out.push_str(&format!(
+            " (showing first {count} — increase \"count\" to see more)"
+        ));
+    }
 
     Ok(out)
 }

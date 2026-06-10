@@ -388,6 +388,18 @@ fn human_type(plex_type: &str) -> &str {
     }
 }
 
+// ── JSON helpers ──────────────────────────────────────────────────────────────
+
+/// Plex JSON API returns a single item as `{...}` and multiple items as `[{...}]`.
+/// Normalize both forms into a uniform slice of value references.
+fn items_from_json<'a>(container: &'a Value, key: &str) -> Vec<&'a Value> {
+    match &container[key] {
+        Value::Array(arr) => arr.iter().collect(),
+        Value::Object(_) => vec![&container[key]],
+        _ => vec![],
+    }
+}
+
 // ── plex_search ───────────────────────────────────────────────────────────────
 
 fn plex_search(input: &Value) -> Result<String, String> {
@@ -397,32 +409,44 @@ fn plex_search(input: &Value) -> Result<String, String> {
         .filter(|s| !s.is_empty())
         .ok_or("query is required")?;
 
+    let type_filter = input.get("type").and_then(Value::as_str).unwrap_or("all");
+
     let config = load_config()?;
     let path = format!("/search?query={}", url_encode(query));
     let body = plex_get(&path)?;
 
     // Try JSON first, fall back to XML
     if body.trim_start().starts_with('{') {
-        search_from_json(&body, &config)
+        search_from_json(&body, &config, type_filter)
     } else {
-        search_from_xml(&body, &config)
+        search_from_xml(&body, &config, type_filter)
     }
 }
 
-fn search_from_json(body: &str, config: &Config) -> Result<String, String> {
+fn search_from_json(body: &str, config: &Config, type_filter: &str) -> Result<String, String> {
     let root: Value =
         serde_json::from_str(body).map_err(|e| format!("failed to parse response: {e}"))?;
     let container = &root["MediaContainer"];
-    let metadata = container["Metadata"]
-        .as_array()
-        .ok_or_else(|| "Unexpected search response format".to_string())?;
+    let all_items = items_from_json(container, "Metadata");
 
-    if metadata.is_empty() {
+    let items: Vec<&&Value> = all_items
+        .iter()
+        .filter(|item| type_matches(item, type_filter))
+        .take(10)
+        .collect();
+
+    if items.is_empty() {
         return Ok(format!("No results found."));
     }
 
-    let mut out = format!("Plex search results:\n");
-    for item in metadata.iter().take(10) {
+    let header = if type_filter != "all" {
+        format!("Plex search results ({type_filter}):\n")
+    } else {
+        "Plex search results:\n".to_string()
+    };
+    let mut out = header;
+
+    for item in items {
         let title = item["title"].as_str().unwrap_or("");
         let year = item["year"]
             .as_u64()
@@ -450,7 +474,7 @@ fn search_from_json(body: &str, config: &Config) -> Result<String, String> {
     Ok(out.trim_end().to_string())
 }
 
-fn search_from_xml(body: &str, config: &Config) -> Result<String, String> {
+fn search_from_xml(body: &str, config: &Config, type_filter: &str) -> Result<String, String> {
     let tags = parse_xml_tags(body);
     let items: Vec<&Tag> = tags
         .iter()
@@ -459,6 +483,18 @@ fn search_from_xml(body: &str, config: &Config) -> Result<String, String> {
                 && (t.name == "Video" || t.name == "Directory" || t.name == "Track")
                 && t.self_closing
         })
+        .filter(|t| {
+            if type_filter == "all" {
+                return true;
+            }
+            let item_type = tag_attr(&t.attrs, "type").unwrap_or("");
+            match type_filter {
+                "movie" => item_type == "movie",
+                "show" => item_type == "episode" || item_type == "show",
+                "music" => item_type == "track",
+                _ => true,
+            }
+        })
         .take(10)
         .collect();
 
@@ -466,7 +502,13 @@ fn search_from_xml(body: &str, config: &Config) -> Result<String, String> {
         return Ok("No results found.".to_string());
     }
 
-    let mut out = "Plex search results:\n".to_string();
+    let header = if type_filter != "all" {
+        format!("Plex search results ({type_filter}):\n")
+    } else {
+        "Plex search results:\n".to_string()
+    };
+    let mut out = header;
+
     for tag in items {
         let title = tag_attr(&tag.attrs, "title").unwrap_or("");
         let year = tag_attr(&tag.attrs, "year").unwrap_or("");
@@ -490,6 +532,19 @@ fn search_from_xml(body: &str, config: &Config) -> Result<String, String> {
         ));
     }
     Ok(out.trim_end().to_string())
+}
+
+fn type_matches(item: &Value, type_filter: &str) -> bool {
+    if type_filter == "all" {
+        return true;
+    }
+    let item_type = item["type"].as_str().unwrap_or("");
+    match type_filter {
+        "movie" => item_type == "movie",
+        "show" => item_type == "episode" || item_type == "show",
+        "music" => item_type == "track",
+        _ => true,
+    }
 }
 
 fn format_item(
@@ -558,7 +613,113 @@ fn plex_recently_added(input: &Value) -> Result<String, String> {
     let config = load_config()?;
     let body = plex_get("/library/recentlyAdded")?;
 
-    let tags = parse_xml_tags(&body);
+    if body.trim_start().starts_with('{') {
+        recently_added_from_json(&body, &config, type_filter, count)
+    } else {
+        recently_added_from_xml(&body, &config, type_filter, count)
+    }
+}
+
+fn recently_added_from_json(
+    body: &str,
+    config: &Config,
+    type_filter: &str,
+    count: usize,
+) -> Result<String, String> {
+    let root: Value =
+        serde_json::from_str(body).map_err(|e| format!("failed to parse response: {e}"))?;
+    let container = &root["MediaContainer"];
+    let all_items = items_from_json(container, "Metadata");
+
+    let items: Vec<&&Value> = all_items
+        .iter()
+        .filter(|item| {
+            if type_filter == "all" {
+                return true;
+            }
+            let item_type = item["type"].as_str().unwrap_or("");
+            match type_filter {
+                "movie" => item_type == "movie",
+                "show" => item_type == "episode" || item_type == "show",
+                "music" => item_type == "track",
+                _ => true,
+            }
+        })
+        .take(count)
+        .collect();
+
+    if items.is_empty() {
+        return Ok("No recently added items found.".to_string());
+    }
+
+    let header = if type_filter != "all" {
+        format!("Recently added ({type_filter}):\n")
+    } else {
+        "Recently added:\n".to_string()
+    };
+    let mut out = header;
+
+    for item in items {
+        let title = item["title"].as_str().unwrap_or("Unknown");
+        let year = item["year"]
+            .as_u64()
+            .map(|y| y.to_string())
+            .unwrap_or_default();
+        let ptype = item["type"].as_str().unwrap_or("");
+        let added = item["addedAt"].as_str().unwrap_or("");
+        let summary = item["summary"].as_str().unwrap_or("");
+        let lib = item["librarySectionTitle"].as_str().unwrap_or("");
+        let grandparent = item["grandparentTitle"].as_str().unwrap_or("");
+        let parent = item["parentTitle"].as_str().unwrap_or("");
+        let thumb = item["thumb"].as_str().unwrap_or("");
+
+        out.push_str(&format!("  **{title}**"));
+        match ptype {
+            "track" => {
+                if !grandparent.is_empty() {
+                    out.push_str(&format!(" — {grandparent}"));
+                }
+                if !parent.is_empty() {
+                    out.push_str(&format!(" ({parent})"));
+                }
+            }
+            "episode" => {
+                if !grandparent.is_empty() {
+                    out.push_str(&format!(" — {grandparent}"));
+                }
+            }
+            _ => {
+                if !year.is_empty() && year != "0" {
+                    out.push_str(&format!(" ({year})"));
+                }
+            }
+        }
+        out.push_str(&format!(" [{}]", human_type(ptype)));
+        if !lib.is_empty() {
+            out.push_str(&format!(" · {lib}"));
+        }
+        out.push('\n');
+
+        if !added.is_empty() {
+            out.push_str(&format!("    Added: {}\n", format_date(added)));
+        }
+        if !summary.is_empty() {
+            out.push_str(&format!("    {}\n", truncate(summary, 200)));
+        }
+        if !thumb.is_empty() {
+            out.push_str(&format!("    Thumb: {}\n", thumb_url(config, thumb)));
+        }
+    }
+    Ok(out.trim_end().to_string())
+}
+
+fn recently_added_from_xml(
+    body: &str,
+    config: &Config,
+    type_filter: &str,
+    count: usize,
+) -> Result<String, String> {
+    let tags = parse_xml_tags(body);
     let items: Vec<&Tag> = tags
         .iter()
         .filter(|t| {
@@ -648,7 +809,43 @@ fn plex_recently_added(input: &Value) -> Result<String, String> {
 fn plex_libraries(_input: &Value) -> Result<String, String> {
     let body = plex_get("/library/sections")?;
 
-    let tags = parse_xml_tags(&body);
+    if body.trim_start().starts_with('{') {
+        libraries_from_json(&body)
+    } else {
+        libraries_from_xml(&body)
+    }
+}
+
+fn libraries_from_json(body: &str) -> Result<String, String> {
+    let root: Value =
+        serde_json::from_str(body).map_err(|e| format!("failed to parse response: {e}"))?;
+    let container = &root["MediaContainer"];
+    let dirs = items_from_json(container, "Directory");
+
+    if dirs.is_empty() {
+        return Ok("No libraries found on this Plex server.".to_string());
+    }
+
+    let mut out = "Plex libraries:\n".to_string();
+    for dir in dirs {
+        let title = dir["title"].as_str().unwrap_or("Unknown");
+        let stype = dir["type"].as_str().unwrap_or("unknown");
+        let key = dir["key"]
+            .as_str()
+            .or_else(|| dir["key"].as_u64().map(|_| ""))
+            .unwrap_or("");
+        let key_str = if key.is_empty() {
+            String::new()
+        } else {
+            format!(" (key: {key})")
+        };
+        out.push_str(&format!("  {title} [{type}]{key_str}\n", type = human_type(stype)));
+    }
+    Ok(out.trim_end().to_string())
+}
+
+fn libraries_from_xml(body: &str) -> Result<String, String> {
+    let tags = parse_xml_tags(body);
     let sections: Vec<&Tag> = tags
         .iter()
         .filter(|t| t.depth == 1 && t.name == "Directory" && t.self_closing)

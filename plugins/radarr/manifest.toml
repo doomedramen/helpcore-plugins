@@ -1,6 +1,6 @@
 id = "radarr"
 name = "Radarr"
-version = "0.1.5"
+version = "0.1.6"
 description = "Manage your Radarr movie download queue — search, add movies, and check download status"
 tier = "wasm"
 permissions = ["outbound_http", "read_secrets"]
