@@ -27,8 +27,8 @@ struct PageFetch;
 
 impl Guest for PageFetch {
     fn call(tool: String, input_json: String) -> Result<String, String> {
-        let input: Value = serde_json::from_str(&input_json)
-            .map_err(|e| format!("invalid input JSON: {e}"))?;
+        let input: Value =
+            serde_json::from_str(&input_json).map_err(|e| format!("invalid input JSON: {e}"))?;
 
         match tool.as_str() {
             "page_fetch" => page_fetch(&input),
@@ -39,7 +39,9 @@ impl Guest for PageFetch {
 
 export!(PageFetch);
 
-const MAX_OUTPUT_CHARS: usize = 12_000;
+const DEFAULT_PAGE_LINES: usize = 100;
+const MAX_PAGE_LINES: usize = 200;
+const MAX_CONTENT_JSON_BYTES: usize = 7_500;
 
 #[derive(Serialize)]
 struct HttpRequest<'a> {
@@ -54,6 +56,162 @@ struct HttpRequest<'a> {
 struct HttpResponse {
     status: u16,
     body: String,
+}
+
+#[derive(Serialize)]
+struct PaginatedText {
+    content: String,
+    start_line: usize,
+    start_column: usize,
+    end_line: usize,
+    end_column: usize,
+    total_lines: usize,
+    truncated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_start_line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_start_column: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hint: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PageFetchResult<'a> {
+    url: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<&'a str>,
+    #[serde(flatten)]
+    page: PaginatedText,
+}
+
+fn positive_usize(input: &Value, key: &str, default: usize) -> Result<usize, String> {
+    match input.get(key) {
+        None => Ok(default),
+        Some(value) => {
+            let raw = value
+                .as_u64()
+                .ok_or_else(|| format!("{key} must be a positive integer"))?;
+            let parsed = usize::try_from(raw)
+                .map_err(|_| format!("{key} is too large for this platform"))?;
+            if parsed == 0 {
+                return Err(format!("{key} must be at least 1"));
+            }
+            Ok(parsed)
+        }
+    }
+}
+
+fn json_escaped_char_bytes(c: char) -> usize {
+    serde_json::to_string(&c.to_string())
+        .map(|encoded| encoded.len().saturating_sub(2))
+        .unwrap_or(c.len_utf8())
+}
+
+fn paginate_text(text: &str, input: &Value) -> Result<PaginatedText, String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let total_lines = lines.len();
+    let start_line = positive_usize(input, "start_line", 1)?;
+    let start_column = positive_usize(input, "start_column", 1)?;
+
+    if total_lines == 0 {
+        return Ok(PaginatedText {
+            content: String::new(),
+            start_line: 1,
+            start_column: 1,
+            end_line: 0,
+            end_column: 0,
+            total_lines: 0,
+            truncated: false,
+            next_start_line: None,
+            next_start_column: None,
+            hint: None,
+        });
+    }
+    if start_line > total_lines {
+        return Err(format!(
+            "start_line {start_line} exceeds the content's {total_lines} lines"
+        ));
+    }
+
+    let first_line_chars = lines[start_line - 1].chars().count();
+    let max_start_column = first_line_chars.max(1);
+    if start_column > max_start_column {
+        return Err(format!(
+            "start_column {start_column} exceeds line {start_line}'s {first_line_chars} characters"
+        ));
+    }
+
+    let default_end = start_line.saturating_add(DEFAULT_PAGE_LINES - 1);
+    let requested_end = positive_usize(input, "end_line", default_end)?.max(start_line);
+    let max_end = start_line.saturating_add(MAX_PAGE_LINES - 1);
+    let selected_end = requested_end.min(max_end).min(total_lines);
+
+    let mut content = String::new();
+    let mut escaped_bytes = 0;
+    let mut end_line = start_line;
+    let mut end_column = start_column.saturating_sub(1);
+    let mut next_position = None;
+
+    'lines: for line_number in start_line..=selected_end {
+        let line = lines[line_number - 1];
+        let column_offset = if line_number == start_line {
+            start_column - 1
+        } else {
+            0
+        };
+
+        if line_number > start_line {
+            if escaped_bytes + 2 > MAX_CONTENT_JSON_BYTES {
+                next_position = Some((line_number, 1));
+                break;
+            }
+            content.push('\n');
+            escaped_bytes += 2;
+        }
+
+        let mut consumed_column = column_offset;
+        for c in line.chars().skip(column_offset) {
+            let encoded_len = json_escaped_char_bytes(c);
+            if escaped_bytes + encoded_len > MAX_CONTENT_JSON_BYTES {
+                next_position = Some((line_number, consumed_column + 1));
+                end_line = line_number;
+                end_column = consumed_column;
+                break 'lines;
+            }
+            content.push(c);
+            escaped_bytes += encoded_len;
+            consumed_column += 1;
+        }
+        end_line = line_number;
+        end_column = consumed_column;
+    }
+
+    if next_position.is_none() && selected_end < total_lines {
+        next_position = Some((selected_end + 1, 1));
+    }
+
+    let (next_start_line, next_start_column) = next_position
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    let hint = next_position.map(|(line, column)| {
+        format!(
+            "Showing line {start_line}, column {start_column} through line {end_line}, column \
+             {end_column} of {total_lines}. Continue with start_line={line}, start_column={column}."
+        )
+    });
+
+    Ok(PaginatedText {
+        content,
+        start_line,
+        start_column,
+        end_line,
+        end_column,
+        total_lines,
+        truncated: next_position.is_some(),
+        next_start_line,
+        next_start_column,
+        hint,
+    })
 }
 
 fn validate_url(url: &str) -> Result<String, String> {
@@ -89,8 +247,8 @@ fn fetch(url: &str) -> Result<(u16, String), String> {
     let req_json =
         serde_json::to_string(&req).map_err(|e| format!("failed to serialize request: {e}"))?;
     let resp_json = host::http_request(&req_json)?;
-    let resp: HttpResponse =
-        serde_json::from_str(&resp_json).map_err(|e| format!("failed to parse HTTP response: {e}"))?;
+    let resp: HttpResponse = serde_json::from_str(&resp_json)
+        .map_err(|e| format!("failed to parse HTTP response: {e}"))?;
     Ok((resp.status, resp.body))
 }
 
@@ -101,9 +259,31 @@ fn fetch(url: &str) -> Result<(u16, String), String> {
 fn is_block_tag(name: &str) -> bool {
     matches!(
         name,
-        "br" | "p" | "div" | "tr" | "li" | "ul" | "ol" | "table" | "blockquote"
-            | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "section" | "article"
-            | "header" | "footer" | "nav" | "main" | "form" | "pre" | "hr" | "dd" | "dt"
+        "br" | "p"
+            | "div"
+            | "tr"
+            | "li"
+            | "ul"
+            | "ol"
+            | "table"
+            | "blockquote"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "section"
+            | "article"
+            | "header"
+            | "footer"
+            | "nav"
+            | "main"
+            | "form"
+            | "pre"
+            | "hr"
+            | "dd"
+            | "dt"
     )
 }
 
@@ -224,7 +404,13 @@ fn clean_whitespace(raw: &str) -> String {
 /// tag matching while keeping it cheap enough to compute once up front.
 fn ascii_lower(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_ascii() { c.to_ascii_lowercase() } else { c })
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_ascii_lowercase()
+            } else {
+                c
+            }
+        })
         .collect()
 }
 
@@ -345,13 +531,7 @@ fn page_fetch(input: &Value) -> Result<String, String> {
         ));
     }
 
-    let (title, mut text) = html_to_text(&body);
-
-    let mut truncated = false;
-    if text.chars().count() > MAX_OUTPUT_CHARS {
-        text = text.chars().take(MAX_OUTPUT_CHARS).collect();
-        truncated = true;
-    }
+    let (title, text) = html_to_text(&body);
 
     if text.trim().is_empty() {
         return Ok(format!(
@@ -360,14 +540,75 @@ fn page_fetch(input: &Value) -> Result<String, String> {
         ));
     }
 
-    let mut out = String::new();
-    match &title {
-        Some(t) => out.push_str(&format!("# {t}\nSource: {url}\n\n{text}")),
-        None => out.push_str(&format!("Source: {url}\n\n{text}")),
-    }
-    if truncated {
-        out.push_str("\n\n[Content truncated — the page is longer than shown here.]");
+    let page = paginate_text(&text, input)?;
+    serde_json::to_string(&PageFetchResult {
+        url: &url,
+        title: title.as_deref(),
+        page,
+    })
+    .map_err(|e| format!("failed to serialize page content: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paginates_by_line_range() {
+        let input = serde_json::json!({"start_line": 2, "end_line": 3});
+        let page = paginate_text("one\ntwo\nthree\nfour", &input).unwrap();
+
+        assert_eq!(page.content, "two\nthree");
+        assert_eq!(page.start_line, 2);
+        assert_eq!(page.end_line, 3);
+        assert_eq!(page.total_lines, 4);
+        assert_eq!(page.next_start_line, Some(4));
+        assert_eq!(page.next_start_column, Some(1));
+        assert!(page.truncated);
     }
 
-    Ok(out)
+    #[test]
+    fn caps_requested_line_window() {
+        let text = (1..=250)
+            .map(|line| format!("line {line}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let page = paginate_text(&text, &serde_json::json!({"end_line": 999})).unwrap();
+
+        assert_eq!(page.end_line, MAX_PAGE_LINES);
+        assert_eq!(page.next_start_line, Some(MAX_PAGE_LINES + 1));
+    }
+
+    #[test]
+    fn continues_within_a_long_line() {
+        let text = "x".repeat(MAX_CONTENT_JSON_BYTES + 100);
+        let first = paginate_text(&text, &serde_json::json!({})).unwrap();
+        let next_column = first.next_start_column.unwrap();
+        let second = paginate_text(
+            &text,
+            &serde_json::json!({
+                "start_line": first.next_start_line.unwrap(),
+                "start_column": next_column
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(first.content.len(), MAX_CONTENT_JSON_BYTES);
+        assert_eq!(format!("{}{}", first.content, second.content), text);
+        assert!(!second.truncated);
+    }
+
+    #[test]
+    fn serialized_page_stays_below_helpcore_limit() {
+        let text = "\"".repeat(MAX_CONTENT_JSON_BYTES);
+        let page = paginate_text(&text, &serde_json::json!({})).unwrap();
+        let result = serde_json::to_string(&PageFetchResult {
+            url: "https://example.com/article",
+            title: Some("Example"),
+            page,
+        })
+        .unwrap();
+
+        assert!(result.len() < 10_000);
+    }
 }

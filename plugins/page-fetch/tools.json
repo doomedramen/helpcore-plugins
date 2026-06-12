@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "page_fetch",
-      "description": "Fetch a web page by URL and return its content as clean, readable plain text — with HTML tags, scripts and styling stripped out. Use this to read articles, documentation pages, blog posts, or any other web page the user references or asks about. Not suitable for pages that require login or heavy JavaScript rendering to show content.",
+      "description": "Fetch a web page by URL and return a structured page of clean, readable plain text with line counts and continuation metadata. HTML tags, scripts and styling are stripped out. Use start_line and end_line to continue through long pages. Not suitable for pages that require login or heavy JavaScript rendering to show content.",
       "input_schema": {
         "type": "object",
         "required": ["url"],
@@ -10,6 +10,21 @@
           "url": {
             "type": "string",
             "description": "The full URL to fetch, including scheme, e.g. 'https://example.com/article'"
+          },
+          "start_line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "First content line to return (1-based). Defaults to 1."
+          },
+          "start_column": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Character column within start_line (1-based). Defaults to 1. Pass the returned next_start_column when continuing within an unusually long line."
+          },
+          "end_line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Last content line to return, inclusive. Defaults to 100 lines after start_line and is capped at 200 lines per call."
           }
         }
       }

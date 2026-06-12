@@ -70,7 +70,7 @@
     },
     {
       "name": "github_get_file_content",
-      "description": "Retrieve the raw plain-text content of a file from a GitHub repository.",
+      "description": "Retrieve a structured page of raw plain-text file content from a GitHub repository, including line counts and continuation metadata. Use start_line and end_line to continue through long files.",
       "input_schema": {
         "type": "object",
         "required": ["owner", "repo", "path"],
@@ -90,6 +90,21 @@
           "ref": {
             "type": "string",
             "description": "The name of the commit/branch/tag. Default: the repository's default branch."
+          },
+          "start_line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "First file line to return (1-based). Defaults to 1."
+          },
+          "start_column": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Character column within start_line (1-based). Defaults to 1. Pass the returned next_start_column when continuing within an unusually long line."
+          },
+          "end_line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Last file line to return, inclusive. Defaults to 100 lines after start_line and is capped at 200 lines per call."
           }
         }
       }

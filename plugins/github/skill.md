@@ -19,9 +19,10 @@ Use `github_get_repository` to get metadata like stars, forks, primary language,
 Use `github_list_repository_contents` to see the files and directories at any path within a repository. This is useful for finding where source code, documentation, or configuration files are located.
 
 ### 4. Reading File Contents
-Use `github_get_file_content` to retrieve the raw text of a specific file. This is perfect for reading `README.md`, `Cargo.toml`, source code files, or documentation.
+Use `github_get_file_content` to retrieve structured, paginated raw text for a specific file. The result includes the returned content, line range, total line count, and continuation metadata. This is perfect for reading `README.md`, `Cargo.toml`, source code files, or documentation.
 
 ## Guidelines
 - **Rate Limits:** Public API requests are rate-limited. If you encounter errors, suggest the user configure a GitHub token in the plugin settings.
 - **File Paths:** When listing or reading, use relative paths from the repository root (e.g., `src/lib.rs`, `README.md`).
 - **Refs:** By default, tools use the repository's default branch. You can specify a branch, tag, or commit hash using the `ref` parameter.
+- **Long Files:** Follow `next_start_line` and `next_start_column` while `truncated` is true. You can request an inclusive `start_line`/`end_line` range, with at most 200 lines per call. `start_column` is normally 1 and only changes for an unusually long single line.
