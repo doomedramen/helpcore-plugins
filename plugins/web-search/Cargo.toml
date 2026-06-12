@@ -1,8 +1,8 @@
 [workspace]
 
 [package]
-name = "duckduckgo"
-version = "0.1.2"
+name = "web-search"
+version = "0.2.1"
 edition = "2021"
 
 [lib]

@@ -1,0 +1,32 @@
+id = "web-search"
+name = "Web Search"
+version = "0.2.1"
+description = "Search the live web with Brave Search or a self-hosted SearXNG or Whoogle instance."
+tier = "wasm"
+permissions = ["outbound_http", "read_secrets"]
+allowed_hosts = ["*"]
+
+brief = "Use when the user asks for current information, recent events, web search results, recommendations, or anything requiring live internet knowledge."
+
+[[config_schema]]
+key = "provider"
+label = "Search Provider"
+type = "select"
+required = true
+default = "brave"
+options = ["brave", "searxng", "whoogle"]
+hint = "SearXNG is recommended for self-hosting; Whoogle is experimental."
+
+[[config_schema]]
+key = "base_url"
+label = "Self-hosted Base URL"
+type = "url"
+required = false
+hint = "Required for SearXNG or Whoogle, e.g. http://searxng:8080"
+
+[[config_schema]]
+key = "api_key"
+label = "Brave Search API Key"
+type = "secret"
+required = false
+hint = "Required only for Brave. Create a key at https://brave.com/search/api/"
